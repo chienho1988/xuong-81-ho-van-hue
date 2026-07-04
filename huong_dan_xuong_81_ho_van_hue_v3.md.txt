@@ -1,0 +1,195 @@
+# HƯỚNG DẪN XÂY DỰNG WEB APP "XƯỞNG 81 HỒ VĂN HUÊ" (BẢN 3)
+
+## 1. TỔNG QUAN
+
+Xây dựng một web app PWA tiếng Việt tên **"Xưởng 81 Hồ Văn Huê"** cho một xưởng may nhỏ, gồm 2 luồng chính:
+
+1. **ĐẶT HÀNG LÊN XƯỞNG** (thay thế nhắn tin Zalo): chủ xưởng tạo đơn đặt may (sản phẩm, size, màu, số lượng, độ ưu tiên GẤP/bình thường) → công nhân nhận thông báo trên điện thoại → may xong bấm "Đã xong".
+2. **GHI SẢN LƯỢNG**: ghi nhận sản phẩm may ra hằng ngày để chủ xưởng biết ngày/tháng may được bao nhiêu cái, sản phẩm gì, size gì, màu gì.
+
+**Liên kết quan trọng giữa 2 luồng:** khi công nhân bấm "Đã xong" một đơn đặt hàng, app TỰ ĐỘNG ghi bản ghi sản lượng tương ứng — công nhân KHÔNG phải nhập lại lần hai. Luồng ghi sản lượng thủ công vẫn giữ, dùng cho hàng may không theo đơn.
+
+Bối cảnh:
+- Xưởng hiện chỉ có 1 công nhân may chính, sản lượng nhỏ.
+- Hiện tại chủ xưởng phải nhắn Zalo mỗi ngày để đặt may (sản phẩm, số lượng, size, màu, cái nào gấp) — app này thay thế hoàn toàn việc đó.
+- Công nhân dùng điện thoại Android cấu hình thấp → app phải rất nhẹ, mobile-first, thao tác cực ít, nút to chữ to.
+- Không làm app native. Chỉ làm web app/PWA mở bằng link, thêm vào màn hình chính.
+
+Ưu tiên theo thứ tự:
+1. Công nhân dùng được ngay, không cần hướng dẫn.
+2. Đặt hàng + báo xong phải nhanh hơn nhắn Zalo.
+3. Chủ xưởng xem được tháng này may bao nhiêu cái, sản phẩm gì.
+4. App nhẹ, chạy hoàn toàn trong free tier (0đ/tháng), dễ bảo trì.
+5. KHÔNG làm thừa tính năng.
+
+## 2. STACK KỸ THUẬT (ĐÃ CHỐT, KHÔNG ĐỔI)
+
+- Frontend: **Next.js** (App Router)
+- Database: **Supabase** (Postgres, gói Free)
+- Ảnh sản phẩm: **Supabase Storage** (gói Free)
+- Hosting: **Vercel** (gói Hobby, miễn phí)
+- Source code: **GitHub** (repo private, miễn phí)
+- PWA: manifest + service worker + icon app
+- Thông báo: **Web Push** (chuẩn PWA, miễn phí) — gửi qua Vercel serverless function dùng thư viện `web-push` với VAPID keys. Làm ở phase cuối.
+- Xuất Excel: thư viện `xlsx` (SheetJS), xuất phía client
+
+KHÔNG dùng: Firebase, email/password auth, realtime subscription, backend server riêng. Đọc/ghi dữ liệu gọi thẳng Supabase từ client qua `@supabase/supabase-js`; riêng gửi push dùng 1 API route nhỏ trên Vercel.
+
+## 3. ĐĂNG NHẬP: CHỈ DÙNG PIN
+
+- KHÔNG dùng Supabase Auth, KHÔNG email/password.
+- 2 mã PIN lưu trong bảng `users`: PIN chủ xưởng → vai trò `admin`; PIN công nhân → vai trò `worker`.
+- Màn hình đăng nhập: logo/icon xưởng, tên app "Xưởng 81 Hồ Văn Huê", ô nhập PIN (bàn phím số), nút "Đăng nhập".
+- Lưu phiên vào bộ nhớ trình duyệt để không phải nhập lại mỗi lần mở app.
+- App nội bộ 2 người, mức bảo mật này đủ. Không làm quên PIN/đổi PIN trong app.
+
+## 4. LUỒNG ĐẶT HÀNG (LUỒNG MỚI, QUAN TRỌNG NHẤT)
+
+### 4.1. Chủ xưởng tạo đơn
+1. Vào tab "Đơn hàng" → bấm nút to **"+ Đặt hàng"**.
+2. Chọn danh mục → chọn sản phẩm (có ảnh + tên).
+3. Chọn size bằng nút, chọn màu bằng nút.
+4. Nhập số lượng (nút − / + lớn hoặc gõ trực tiếp).
+5. Công tắc ưu tiên: **Bình thường** (mặc định) / **🔥 GẤP**.
+6. (Tùy chọn) hạn cần xong: chọn nhanh "Hôm nay / Ngày mai / Chọn ngày" — không bắt buộc.
+7. (Tùy chọn) ô ghi chú.
+8. Bấm **"Gửi đơn"** → màn xác nhận + 2 nút: **"Đặt thêm"** (giữ nguyên sản phẩm, quay lại bước 3 để đặt tiếp size/màu khác) và **"Hoàn thành"**.
+9. Khi gửi đơn thành công, hệ thống gửi thông báo push đến điện thoại công nhân (phase cuối): ví dụ "🔥 GẤP — Áo thun · Đen · M · 10 cái" hoặc "Đơn mới — Váy chữ A · Trắng · Freesize · 5 cái".
+
+Mỗi đơn = 1 tổ hợp: sản phẩm + size + màu + số lượng. Đặt nhiều tổ hợp thì dùng "Đặt thêm" — giống nhắn nhiều dòng Zalo nhưng nhanh hơn.
+
+### 4.2. Công nhân nhận và làm đơn
+- Mở app → màn hình chính của công nhân là danh sách **"Đơn cần may"**:
+  - Đơn 🔥 GẤP tự động xếp lên đầu, có viền/badge đỏ nổi bật.
+  - Mỗi thẻ đơn: ảnh sản phẩm + tên + size + màu + số lượng + badge GẤP (nếu có) + hạn (nếu có) + ghi chú.
+  - Thẻ đơn chỉ có 1 nút hành động duy nhất, thật to: **"✓ Đã xong"**.
+- Bấm "✓ Đã xong" → hộp xác nhận nhỏ "Xác nhận đã may xong 10 cái Áo thun Đen M?" → Đồng ý:
+  1. Đơn chuyển trạng thái `done`, biến khỏi danh sách "Đơn cần may", chuyển sang mục "Đã xong hôm nay".
+  2. App TỰ ĐỘNG tạo 1 bản ghi trong `production_logs` (đúng sản phẩm/size/màu/số lượng, gắn `order_id`).
+  3. Gửi thông báo push cho chủ xưởng: "✅ Đã xong: Áo thun · Đen · M · 10 cái".
+- Nếu công nhân may được ít hơn số đặt: bấm giữ hoặc bấm menu nhỏ trên thẻ → "Xong một phần" → nhập số đã xong (ví dụ 6/10) → app ghi sản lượng 6 cái, đơn còn lại 4 cái vẫn nằm trong danh sách. (Tính năng duy nhất "nâng cao" được phép — vì thực tế may thiếu rất hay xảy ra.)
+
+### 4.3. Trạng thái đơn — CHỈ 2 TRẠNG THÁI
+- `pending` (Chờ may) và `done` (Đã xong). KHÔNG làm trạng thái "đang may", "đã nhận", "đang giao"... để giữ đơn giản.
+- Chủ xưởng sửa/hủy được đơn khi còn `pending`. Đơn `done` không sửa (muốn sửa thì sửa bản ghi sản lượng).
+
+## 5. LUỒNG GHI SẢN LƯỢNG THỦ CÔNG (GIỮ NGUYÊN NHƯ BẢN 2)
+
+Dùng cho hàng may không theo đơn đặt. Mỗi bản ghi = 1 tổ hợp: sản phẩm + size + màu + số lượng.
+
+Luồng: chọn danh mục → chọn sản phẩm → chọn size (nút) → chọn màu (nút) → nhập số lượng (− / + hoặc gõ) → ghi chú (tùy chọn) → **"Lưu sản lượng"** → màn xác nhận với 2 nút "Lưu thêm" / "Hoàn thành".
+
+KHÔNG nhập tổng rồi tách size riêng màu riêng. Danh sách size/màu lấy theo `default_sizes`/`default_colors` của sản phẩm.
+
+## 6. CHỨC NĂNG THEO VAI TRÒ
+
+### A. Công nhân (worker)
+- Xem danh sách "Đơn cần may", bấm "✓ Đã xong" / "Xong một phần".
+- Ghi sản lượng thủ công.
+- Xem lịch sử hôm nay của mình (gộp cả sản lượng từ đơn và nhập tay).
+- Sửa/xóa bản ghi sản lượng của mình TRONG NGÀY. Qua ngày chỉ admin sửa được.
+
+### B. Chủ xưởng (admin)
+- Tất cả chức năng của công nhân, cộng thêm:
+- Tạo đơn đặt hàng, sửa/hủy đơn đang chờ, xem toàn bộ đơn (chờ may / đã xong).
+- Tạo / sửa / xóa danh mục và sản phẩm (kèm upload ảnh).
+- Xem lịch sử theo ngày bất kỳ, sửa/xóa mọi bản ghi.
+- Xem báo cáo tháng, xuất Excel.
+
+## 7. CÁC MÀN HÌNH (11 MÀN, KHÔNG THÊM)
+
+Bottom nav 4 tab: **Đơn hàng | Nhập sản lượng | Lịch sử | Báo cáo** (tab Báo cáo chỉ hiện với admin). Với công nhân, tab mặc định khi mở app là **Đơn hàng**.
+
+1. **Đăng nhập** — như mục 3.
+2. **Đơn hàng (công nhân)** — danh sách "Đơn cần may" + mục thu gọn "Đã xong hôm nay". Như mục 4.2.
+3. **Đơn hàng (admin)** — danh sách đơn chia 2 tab nhỏ: Chờ may / Đã xong. Nút to "+ Đặt hàng". Đếm nhanh trên đầu: "Đang chờ: 5 đơn (2 GẤP)".
+4. **Tạo đơn đặt hàng (admin)** — như mục 4.1.
+5. **Danh mục** — lưới nút to (icon + tên + màu đại diện); "+ Thêm danh mục" chỉ hiện với admin; nút Đăng xuất ở góc trên màn này.
+6. **Danh sách sản phẩm theo danh mục** — mỗi dòng: thumbnail ảnh + tên + mũi tên; "+ Thêm sản phẩm" chỉ admin.
+7. **Nhập sản lượng** — ảnh + tên sản phẩm; hàng nút SIZE; hàng nút MÀU; ô số lượng thật to với nút − / + tối thiểu 56px; ô ghi chú; nút "Lưu sản lượng" cố định dưới cùng.
+8. **Ghi nhận thành công** — tick xanh lớn, tóm tắt, 2 nút "Lưu thêm" / "Hoàn thành".
+9. **Lịch sử** — mặc định hôm nay, admin chọn được ngày khác. Mỗi dòng: giờ | sản phẩm | size | màu | số lượng | nhãn nhỏ "từ đơn" nếu sinh từ đơn hàng. Cuối trang: "Tổng hôm nay: 20 cái". Bấm vào dòng để sửa/xóa theo quyền.
+10. **Báo cáo tháng (admin)** — chọn tháng; tổng sản phẩm; tổng theo danh mục; top sản phẩm; tổng theo size; tổng theo màu; 1 biểu đồ cột đơn giản theo danh mục (không bắt buộc). Nút **"Xuất Excel"** ngay trên màn này: lọc từ ngày – đến ngày (+ danh mục/sản phẩm nếu muốn), cột: Ngày | Giờ | Công nhân | Danh mục | Sản phẩm | Size | Màu | Số lượng | Từ đơn hàng (Có/Không) | Ghi chú. Ghi chú nhỏ dưới nút: "Xuất Excel định kỳ mỗi tháng để làm bản sao lưu dữ liệu."
+11. **Tạo/sửa danh mục & sản phẩm (admin)** — Danh mục: tên, icon từ bộ có sẵn, màu đại diện. Sản phẩm: tên, danh mục, **upload ảnh** (app tự nén phía client về tối đa 800px, WebP/JPEG ~70%, mục tiêu dưới ~100KB, dùng canvas hoặc thư viện `browser-image-compression` rồi mới upload lên Supabase Storage), size mặc định (tick nhiều: S/M/L/XL/Freesize), màu mặc định (tick nhiều: Đen/Trắng/Xanh/Đỏ/Be/Khác + cho gõ thêm màu), ghi chú, công tắc "Đang sản xuất" (active) để ẩn sản phẩm cũ mà không xóa.
+
+## 8. DATABASE (SUPABASE) — 6 BẢNG
+
+### users
+- id, name, role (`admin` / `worker`), pin_hash, created_at
+
+### categories
+- id, name, icon, color, sort_order, created_at, updated_at
+
+### products
+- id, category_id, name, image_url, default_sizes (mảng text), default_colors (mảng text), note, active (boolean), created_at, updated_at
+
+### orders
+- id, product_id, size (text), color (text), quantity (số nguyên), remaining_quantity (số nguyên, dùng cho "xong một phần"), priority (`normal` / `urgent`), status (`pending` / `done`), due_date (ngày, cho phép null), note, created_by, completed_at, created_at, updated_at
+
+### production_logs
+- id, product_id, worker_id, order_id (cho phép null — null nghĩa là nhập tay), log_date, size (text), color (text), quantity (số nguyên), note, created_at, updated_at
+
+### push_subscriptions
+- id, user_id, subscription (jsonb — endpoint + keys của Web Push), created_at
+
+Lưu ý:
+- KHÔNG bảng settings. KHÔNG lưu size/màu dạng JSON gộp — mỗi dòng 1 size + 1 màu + 1 số lượng.
+- Danh mục của bản ghi/đơn suy ra qua product_id (join), không lưu trùng.
+- Báo cáo chỉ là SELECT với SUM + GROUP BY trên production_logs.
+- Khi bấm "Đã xong": cập nhật orders (status=done, completed_at) + insert production_logs (gắn order_id) trong cùng 1 thao tác (dùng Postgres function/RPC để đảm bảo cả 2 cùng thành công).
+
+## 9. THÔNG BÁO PUSH (LÀM Ở PHASE CUỐI)
+
+- Dùng Web Push chuẩn PWA — miễn phí, hiện thông báo trên màn hình Android như app thường, kể cả khi không mở app.
+- Lần đầu mở app, hiện hộp thoại tiếng Việt dễ hiểu: "Cho phép nhận thông báo khi có đơn hàng mới?" → người dùng bấm cho phép → lưu subscription vào bảng `push_subscriptions`.
+- Gửi push qua 1 API route trên Vercel dùng thư viện `web-push` + VAPID keys (lưu trong biến môi trường).
+- Chỉ có 2 loại thông báo, KHÔNG thêm:
+  1. Gửi cho công nhân khi có đơn mới: "🔥 GẤP — Áo thun · Đen · M · 10 cái" hoặc "Đơn mới — ...".
+  2. Gửi cho chủ xưởng khi đơn xong: "✅ Đã xong: Áo thun · Đen · M · 10 cái".
+- Trong app, tab Đơn hàng luôn hiện số badge đơn đang chờ — kể cả khi người dùng từ chối thông báo thì mở app vẫn thấy đủ.
+- Lưu ý hiển thị cho người dùng: thông báo chỉ đến khi điện thoại có mạng.
+
+## 10. YÊU CẦU UI
+
+- Mobile-first tuyệt đối. Toàn bộ giao diện tiếng Việt.
+- Sạch, sáng: nền trắng/xám rất nhạt, nút chính xanh dương, thành công xanh lá, GẤP/lỗi màu đỏ, cảnh báo cam.
+- Nút cao tối thiểu 48px; nút "✓ Đã xong", nút +/− và nút Lưu phải rất lớn. Chữ to, rõ.
+- Đơn GẤP phải nhận ra được trong 1 giây: viền đỏ + badge 🔥 GẤP + luôn xếp trên đầu.
+- Card bo góc nhẹ, KHÔNG animation nặng, KHÔNG màu mè.
+- Ảnh dùng thumbnail nhỏ, lazy load, có placeholder khi chưa tải xong.
+- Ưu tiên thao tác nhanh hơn đẹp.
+
+## 11. ĐỒNG BỘ DỮ LIỆU
+
+- Mọi dữ liệu nằm trên Supabase. Chủ tạo đơn/sản phẩm mới → điện thoại công nhân mở app hoặc kéo refresh (pull-to-refresh) là thấy ngay; kèm push notification thì biết ngay cả khi không mở app.
+- KHÔNG realtime subscription. Fetch lại khi mở màn hình + pull-to-refresh + tự refresh danh sách đơn khi app được mở lại từ nền (visibilitychange).
+- Service worker chỉ cache giao diện (shell) để mở nhanh; dữ liệu luôn lấy mới từ server. Mất mạng thì hiện "Không có kết nối mạng" — KHÔNG làm chế độ offline.
+
+## 12. CHỐNG SUPABASE FREE BỊ TẠM DỪNG
+
+Gói Supabase Free tự tạm dừng project nếu 7 ngày không có request (ví dụ nghỉ Tết). Xử lý: tạo GitHub Actions workflow `.github/workflows/keep-alive.yml` chạy cron 2–3 ngày/lần, gửi 1 request SELECT đơn giản đến Supabase REST API để giữ project hoạt động.
+
+## 13. NHỮNG GÌ TUYỆT ĐỐI KHÔNG LÀM Ở BẢN NÀY
+
+- KHÔNG email/password, KHÔNG Supabase Auth, KHÔNG phân quyền phức tạp.
+- KHÔNG trạng thái đơn hàng phức tạp (chỉ Chờ may / Đã xong).
+- KHÔNG quản lý đơn hàng của KHÁCH, KHÔNG kho vải, KHÔNG tính lương, KHÔNG chat nội bộ (app này thay Zalo cho việc đặt may, không thay Zalo để trò chuyện).
+- KHÔNG AI, KHÔNG barcode/QR.
+- KHÔNG realtime, KHÔNG chế độ offline.
+- KHÔNG app iOS/Android riêng.
+- KHÔNG biểu đồ phức tạp, KHÔNG màn hình cài đặt riêng.
+- Thông báo CHỈ có 2 loại ở mục 9, không thêm loại nào khác.
+
+## 14. PHASE TRIỂN KHAI
+
+- **Phase 1:** UI mock mobile-first đầy đủ 11 màn hình với dữ liệu mẫu (2 danh mục, 4 sản phẩm, vài đơn hàng và bản ghi giả — có cả đơn GẤP để xem hiển thị).
+- **Phase 2:** Tạo project Supabase, tạo 6 bảng, kết nối app, đăng nhập PIN hoạt động thật.
+- **Phase 3:** CRUD danh mục + sản phẩm, upload ảnh có nén phía client lên Supabase Storage.
+- **Phase 4:** Luồng ĐẶT HÀNG hoàn chỉnh: tạo đơn, danh sách đơn công nhân, "✓ Đã xong" + "Xong một phần", tự động sinh bản ghi sản lượng (dùng RPC), sửa/hủy đơn pending.
+- **Phase 5:** Ghi sản lượng thủ công + lịch sử + sửa/xóa theo quyền.
+- **Phase 6:** Báo cáo tháng + xuất Excel theo khoảng ngày.
+- **Phase 7:** PWA (manifest, service worker, icon), tối ưu điện thoại yếu, keep-alive GitHub Actions, deploy Vercel.
+- **Phase 8:** Thông báo Web Push (2 loại ở mục 9).
+
+Sau mỗi phase: chạy thử, sửa lỗi, viết walkthrough ngắn (các bước bấm thử) để tôi kiểm tra rồi mới sang phase tiếp theo.
+
