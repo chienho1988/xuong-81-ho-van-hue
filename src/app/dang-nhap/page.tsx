@@ -3,10 +3,21 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { useRouter } from 'next/navigation';
+import { shouldAskPushPermission, dismissPushAsk, requestPushPermission, ensurePushSubscription } from '@/lib/pushNotifications';
+
+// Lấy user id từ phiên vừa lưu (login() ghi vào localStorage trước khi trả về)
+function getSessionUserId(): string {
+  try {
+    return JSON.parse(localStorage.getItem('xuong81_session') || '{}').id || '';
+  } catch {
+    return '';
+  }
+}
 
 export default function LoginPage() {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
+  const [askPush, setAskPush] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
 
@@ -19,11 +30,30 @@ export default function LoginPage() {
 
   const handleLogin = async () => {
     if (await login(pin)) {
+      if (shouldAskPushPermission()) {
+        // Chưa hỏi lần nào -> hiện hộp thoại giải thích trước khi gọi permission prompt
+        setAskPush(true);
+        return;
+      }
+      // Đã cho phép từ trước -> âm thầm đảm bảo subscription còn hiệu lực
+      ensurePushSubscription(getSessionUserId());
       router.replace('/don-hang');
     } else {
       setError('Sai PIN. Thử lại!');
       setPin('');
     }
+  };
+
+  const acceptPush = async () => {
+    setAskPush(false);
+    await requestPushPermission(getSessionUserId());
+    router.replace('/don-hang');
+  };
+
+  const declinePush = () => {
+    dismissPushAsk();
+    setAskPush(false);
+    router.replace('/don-hang');
   };
 
   const dots = Array(6).fill('').map((_, i) => pin.length > i ? '●' : '○').join(' ');
@@ -70,6 +100,24 @@ export default function LoginPage() {
           Demo: Admin PIN 1234 · Công nhân PIN 5678
         </p>
       </div>
+
+      {askPush && (
+        <div className="modal-overlay">
+          <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+            <div className="modal-title">🔔 Thông báo đơn hàng</div>
+            <p style={{ fontSize: 16, lineHeight: 1.6 }}>
+              Cho phép nhận thông báo khi có đơn hàng mới?
+            </p>
+            <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', marginTop: 8, lineHeight: 1.5 }}>
+              Thông báo hiện trên màn hình điện thoại kể cả khi không mở app (cần có mạng).
+            </p>
+            <div className="modal-actions">
+              <button className="btn btn-outline" id="btn-push-later" onClick={declinePush}>Để sau</button>
+              <button className="btn btn-primary" id="btn-push-allow" onClick={acceptPush}>Đồng ý</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

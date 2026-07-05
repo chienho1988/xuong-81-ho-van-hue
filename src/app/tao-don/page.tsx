@@ -86,6 +86,17 @@ export default function TaoDonPage() {
       return;
     }
     console.log('[TaoDon] ✅ Order created:', newOrder.id);
+
+    // Push cho công nhân — fire-and-forget, lỗi push không ảnh hưởng luồng chính
+    const pushTitle = priority === 'urgent'
+      ? `🔥 GẤP — ${selProduct.name} · ${selColor} · ${selSize} · ${qty} cái`
+      : `Đơn mới — ${selProduct.name} · ${selColor} · ${selSize} · ${qty} cái`;
+    fetch('/api/send-push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'worker', title: pushTitle, body: 'Bấm để xem đơn cần may' }),
+    }).catch(() => {});
+
     setLastOrder({ product: selProduct, size: selSize, color: selColor, qty });
     setStep('success');
   };

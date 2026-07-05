@@ -284,6 +284,21 @@ export default function DonHangPage() {
     );
   }
 
+  // Push cho admin khi công nhân xong đơn — fire-and-forget, không chặn UI
+  const notifyAdminDone = (order: Order, doneQty: number, extra: string) => {
+    if (user?.role !== 'worker') return;
+    const prod = products[order.product_id];
+    fetch('/api/send-push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        role: 'admin',
+        title: `✅ Đã xong: ${prod?.name || 'Sản phẩm'} · ${order.color} · ${order.size} · ${doneQty} cái`,
+        body: extra,
+      }),
+    }).catch(() => {});
+  };
+
   // ── Hành động ──────────────────────────────────────────────
   const confirmDone = async () => {
     if (!confirmOrder) return;
@@ -293,7 +308,10 @@ export default function DonHangPage() {
       completed_by: user?.name || 'Công nhân',
       is_read_by_admin: false,
     });
-    if (ok) showToast('✅ Đã hoàn thành đơn');
+    if (ok) {
+      showToast('✅ Đã hoàn thành đơn');
+      notifyAdminDone(confirmOrder, confirmOrder.remaining_quantity, `Hoàn thành bởi ${user?.name || 'công nhân'}`);
+    }
     setConfirmOrder(null);
   };
 
@@ -301,7 +319,10 @@ export default function DonHangPage() {
     if (!partialOrder) return;
     const left = Math.max(0, partialOrder.remaining_quantity - partialQty);
     const ok = await updateOrder(partialOrder.id, { remaining_quantity: left });
-    if (ok) showToast(`✅ Đã may ${partialQty} cái, còn lại ${left}`);
+    if (ok) {
+      showToast(`✅ Đã may ${partialQty} cái, còn lại ${left}`);
+      notifyAdminDone(partialOrder, partialQty, `Xong một phần — còn lại ${left} cái`);
+    }
     setPartialOrder(null);
   };
 

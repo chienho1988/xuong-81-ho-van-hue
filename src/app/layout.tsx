@@ -22,36 +22,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="vi">
       <head>
-        {/* FIX: Service Worker Management — xoá cache cũ, unregister, force update */}
+        {/* Service Worker cho Web Push (sw.js không cache gì) + dọn cache của các bản cũ */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
 (function() {
-  // 1. Unregister tất cả service workers cũ
+  // 1. Đăng ký service worker nhận thông báo push
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(function(regs) {
-      regs.forEach(function(reg) {
-        reg.unregister();
-        console.log('[SW] Unregistered:', reg.scope);
-      });
-    });
+    navigator.serviceWorker.register('/sw.js').catch(function() {});
   }
 
-  // 2. Xoá toàn bộ cache cũ (bao gồm cache Supabase API)
+  // 2. Xoá cache cũ còn sót từ các bản PWA trước (sw.js mới không cache gì)
   if ('caches' in window) {
     caches.keys().then(function(names) {
-      names.forEach(function(name) {
-        caches.delete(name);
-        console.log('[Cache] Deleted:', name);
-      });
+      names.forEach(function(name) { caches.delete(name); });
     });
   }
-
-  // 3. Chặn PWA install — không cho service worker mới vào
-  // (không cần SW vì Supabase realtime đã sync)
-  window.addEventListener('beforeinstallprompt', function(e) {
-    e.preventDefault();
-  });
 })();
             `,
           }}
