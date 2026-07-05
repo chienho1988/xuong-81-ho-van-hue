@@ -3,12 +3,13 @@
 import { useState, Suspense, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
-import { MOCK_CATEGORIES, MOCK_PRODUCTS, loadProducts, Product, addMultipleProductionLogs, ProductionLog } from '@/lib/mockData';
+import { Category, Product, ProductionLog } from '@/lib/mockData';
+import { getCategories, getProducts } from '@/lib/supabaseService';
+import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 
 type Step = 'category' | 'product' | 'form' | 'success';
 
-// Tạo danh sách biến thể đầy đủ từ colors x sizes
 function getFullVariants(product: Product) {
   return product.colors.flatMap(c =>
     product.sizes.map(s => {
@@ -25,17 +26,10 @@ function getFullVariants(product: Product) {
   );
 }
 
-// Component ô tìm kiếm dùng chung
 function SearchBox({
-  value,
-  onChange,
-  placeholder = 'Tìm sản phẩm...',
-  id = 'search-input',
+  value, onChange, placeholder = 'Tìm sản phẩm...', id = 'search-input',
 }: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  id?: string;
+  value: string; onChange: (v: string) => void; placeholder?: string; id?: string;
 }) {
   return (
     <div style={{ padding: '0 12px 10px', position: 'relative' }}>
@@ -53,14 +47,12 @@ function SearchBox({
         autoComplete="off"
       />
       {value && (
-        <button
-          onClick={() => onChange('')}
+        <button onClick={() => onChange('')}
           style={{
             position: 'absolute', right: 22, top: '50%',
             transform: 'translateY(-50%)', background: 'none', border: 'none',
             cursor: 'pointer', fontSize: 16, color: 'var(--text-secondary)',
-          }}
-        >✕</button>
+          }}>✕</button>
       )}
     </div>
   );
@@ -76,17 +68,17 @@ function NhapSanLuongContent() {
   const selProductId = searchParams.get('prod') || '';
 
   const [mounted, setMounted] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+
   useEffect(() => {
     setMounted(true);
-    setProducts(loadProducts());
-    window.addEventListener('productsUpdated', () => setProducts(loadProducts()));
-    return () => {};
+    getCategories().then(setCategories);
+    getProducts().then(setProducts);
   }, []);
 
   const selProduct = products.find(p => p.id === selProductId) || null;
 
-  // Per-variant quantities: variantId -> number
   const [variantQtys, setVariantQtys] = useState<Record<string, number>>({});
   const [savedCount, setSavedCount] = useState(0);
   const [searchQ, setSearchQ] = useState('');
@@ -94,27 +86,22 @@ function NhapSanLuongContent() {
   const navigateTo = useCallback((newStep: Step, catId?: string, prodId?: string) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('step', newStep);
-
     if (catId) params.set('cat', catId);
     else if (newStep === 'category') params.delete('cat');
-
     if (prodId) params.set('prod', prodId);
     else if (newStep === 'category' || newStep === 'product') params.delete('prod');
-
     router.push(`?${params.toString()}`);
   }, [router, searchParams]);
 
-  // Reset variant quantities khi chọn sản phẩm mới
   const resetQtys = useCallback(() => setVariantQtys({}), []);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!selProduct || !user) return;
 
     const fullVariants = getFullVariants(selProduct);
     const now = new Date();
     const logDate = now.toISOString().split('T')[0];
 
-    // Chỉ lưu những dòng có số lượng > 0
     const logs: ProductionLog[] = [];
     fullVariants.forEach(v => {
       const qty = variantQtys[v.id] || 0;
@@ -135,13 +122,16 @@ function NhapSanLuongContent() {
 
     if (logs.length === 0) return;
 
-    addMultipleProductionLogs(logs);
+    // Lưu vào Supabase
+    const { error } = await supabase.from('production_logs').insert(logs);
+    if (error) console.error('Lỗi lưu sản lượng:', error);
+
     setSavedCount(logs.length);
     resetQtys();
     navigateTo('success', selCatId, selProductId);
   };
 
-  // ── SUCCESS ───────────────────────────────────────────────────
+  // ── SUCCESS ──
   if (step === 'success') {
     return (
       <div className="app-shell">
@@ -149,12 +139,12 @@ function NhapSanLuongContent() {
           <div className="success-page">
             <div className="success-icon">✅</div>
             <div className="success-title">Đã lưu sản lượng!</div>
-            <div className="success-detail">
-              <b>{savedCount} dòng</b> đã được lưu thành công
-            </div>
+            <div className="success-detail"><b>{savedCount} dòng</b> đã được lưu thành công</div>
             <div className="success-actions">
-              <button className="btn btn-outline btn-full" id="btn-luu-them" onClick={() => { resetQtys(); navigateTo('form', selCatId, selProductId); }}>Nhập thêm</button>
-              <button className="btn btn-primary btn-full" id="btn-hoan-thanh-sl" onClick={() => router.push('/lich-su')}>Xem lịch sử</button>
+              <button className="btn btn-outline btn-full" id="btn-luu-them"
+                onClick={() => { resetQtys(); navigateTo('form', selCatId, selProductId); }}>Nhập thêm</button>
+              <button className="btn btn-primary btn-full" id="btn-hoan-thanh-sl"
+                onClick={() => router.push('/lich-su')}>Xem lịch sử</button>
             </div>
           </div>
         </div>
@@ -163,16 +153,15 @@ function NhapSanLuongContent() {
     );
   }
 
-  // ── FORM NHẬP ─────────────────────────────────────────────────
+  // ── FORM ──
   if (step === 'form' && selProduct) {
-    const cat = MOCK_CATEGORIES.find(c => c.id === selProduct.category_id);
+    const cat = categories.find(c => c.id === selProduct.category_id);
     const fullVariants = getFullVariants(selProduct);
     const displayVariants = fullVariants.length > 0 ? fullVariants : selProduct.variants;
 
     const setQty = (variantId: string, val: number) => {
       setVariantQtys(prev => ({ ...prev, [variantId]: Math.max(0, val) }));
     };
-
     const hasAny = Object.values(variantQtys).some(q => q > 0);
 
     return (
@@ -185,8 +174,6 @@ function NhapSanLuongContent() {
               <div className="subtitle">{selProduct.name}</div>
             </div>
           </div>
-
-          {/* Ảnh + tên sản phẩm */}
           <div style={{ textAlign: 'center', padding: '16px 16px 8px' }}>
             <div style={{
               width: 80, height: 80, borderRadius: 16, background: (cat?.color ?? '#4A90D9') + '22',
@@ -200,11 +187,9 @@ function NhapSanLuongContent() {
             <div style={{ fontSize: 18, fontWeight: 700 }}>{selProduct.name}</div>
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>{cat?.name}</div>
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', background: '#f5f5f5', borderRadius: 8, padding: '4px 12px', display: 'inline-block' }}>
-              {displayVariants.length} phân loại — bấm + để nhập
+              {displayVariants.length} phân loại
             </div>
           </div>
-
-          {/* Danh sách biến thể với nút +/- riêng */}
           <div style={{ padding: '8px 16px 140px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             {displayVariants.length === 0 ? (
               <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic', fontSize: 14, textAlign: 'center', padding: 24 }}>
@@ -219,7 +204,6 @@ function NhapSanLuongContent() {
                     border: `1.5px solid ${qty > 0 ? 'var(--primary)' : 'var(--border)'}`,
                     borderRadius: 12, background: qty > 0 ? '#eef2ff' : '#fff',
                   }}>
-                    {/* Ảnh */}
                     <div style={{
                       width: 44, height: 44, borderRadius: 8, background: '#f5f5f5',
                       marginRight: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -229,19 +213,14 @@ function NhapSanLuongContent() {
                         ? <img src={v.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         : <span style={{ fontSize: 18, color: '#ccc' }}>📷</span>}
                     </div>
-
-                    {/* Tên màu + size */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 15, color: qty > 0 ? 'var(--primary)' : 'inherit' }}>
                         {v.color} - {v.size}
                       </div>
                       {v.note && <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>📝 {v.note}</div>}
                     </div>
-
-                    {/* Nút - / số lượng / nút + */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                      <button
-                        onClick={() => setQty(v.id, qty - 1)}
+                      <button onClick={() => setQty(v.id, qty - 1)}
                         style={{
                           width: 42, height: 42, borderRadius: '50%',
                           border: `2px solid ${qty > 0 ? 'var(--primary)' : 'var(--border)'}`,
@@ -249,14 +228,8 @@ function NhapSanLuongContent() {
                           fontSize: 22, fontWeight: 700, cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           color: qty > 0 ? 'var(--primary)' : '#ccc',
-                          transition: 'all 0.15s',
-                        }}
-                      >−</button>
-
-                      <input
-                        type="number"
-                        value={qty}
-                        min={0}
+                        }}>−</button>
+                      <input type="number" value={qty} min={0}
                         onChange={e => setQty(v.id, Math.max(0, +e.target.value || 0))}
                         style={{
                           width: 56, textAlign: 'center', fontSize: 20, fontWeight: 700,
@@ -264,19 +237,15 @@ function NhapSanLuongContent() {
                           borderRadius: 8, padding: '6px 4px', outline: 'none',
                           MozAppearance: 'textfield',
                         }}
-                        onFocus={e => e.target.select()}
-                      />
-
-                      <button
-                        onClick={() => setQty(v.id, qty + 1)}
+                        onFocus={e => e.target.select()} />
+                      <button onClick={() => setQty(v.id, qty + 1)}
                         style={{
                           width: 42, height: 42, borderRadius: '50%',
                           border: '2px solid var(--primary)',
                           background: '#e3f2fd', fontSize: 22, fontWeight: 700,
                           cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          color: 'var(--primary)', transition: 'all 0.15s',
-                        }}
-                      >+</button>
+                          color: 'var(--primary)',
+                        }}>+</button>
                     </div>
                   </div>
                 );
@@ -284,15 +253,11 @@ function NhapSanLuongContent() {
             )}
           </div>
         </div>
-
         <div className="sticky-bottom">
-          <button
-            className="btn btn-success btn-full btn-lg"
-            id="btn-luu-san-luong"
+          <button className="btn btn-success btn-full btn-lg" id="btn-luu-san-luong"
             onClick={handleSave}
             disabled={!hasAny}
-            style={{ opacity: hasAny ? 1 : .5 }}
-          >
+            style={{ opacity: hasAny ? 1 : .5 }}>
             {hasAny
               ? `📦 Lưu ${Object.values(variantQtys).reduce((a, b) => a + b, 0)} cái`
               : 'Lưu sản lượng (bấm + để nhập)'}
@@ -303,10 +268,10 @@ function NhapSanLuongContent() {
     );
   }
 
-  // ── CHỌN SẢN PHẨM trong danh mục ─────────────────────────────
+  // ── CHỌN SẢN PHẨM ──
   if (step === 'product') {
     const allProds = products.filter(p => p.category_id === selCatId && p.active);
-    const cat = MOCK_CATEGORIES.find(c => c.id === selCatId);
+    const cat = categories.find(c => c.id === selCatId);
     const q = searchQ.toLowerCase().trim();
     const filtered = q
       ? allProds.filter(p =>
@@ -328,19 +293,10 @@ function NhapSanLuongContent() {
               <div className="subtitle">{cat?.icon} {cat?.name} · {allProds.length} SP</div>
             </div>
           </div>
-
-          <SearchBox
-            value={searchQ}
-            onChange={setSearchQ}
-            placeholder={`Tìm trong ${cat?.name ?? ''}...`}
-            id="search-product-in-cat"
-          />
-
+          <SearchBox value={searchQ} onChange={setSearchQ}
+            placeholder={`Tìm trong ${cat?.name ?? ''}...`} id="search-product-in-cat" />
           {filtered.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon">🔍</div>
-              Không tìm thấy "{searchQ}"
-            </div>
+            <div className="empty-state"><div className="empty-icon">🔍</div>Không tìm thấy "{searchQ}"</div>
           ) : (
             filtered.map(p => (
               <div key={p.id} className="product-row" id={`sl-product-${p.id}`}
@@ -366,7 +322,7 @@ function NhapSanLuongContent() {
     );
   }
 
-  // ── CHỌN DANH MỤC (màn hình đầu) — có tìm kiếm nhanh toàn bộ ─
+  // ── DANH MỤC ──
   if (!mounted) {
     return <div className="app-shell"><div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80dvh' }}>
       <span style={{ fontSize: 15, color: 'var(--text-secondary)' }}>Đang tải...</span>
@@ -390,34 +346,21 @@ function NhapSanLuongContent() {
           <h1>Nhập sản lượng</h1>
           <div className="subtitle">Chọn loại hàng cần ghi</div>
         </div>
-
-        <SearchBox
-          value={searchQ}
-          onChange={setSearchQ}
-          placeholder="Tìm nhanh sản phẩm bất kỳ..."
-          id="search-sl-global"
-        />
-
+        <SearchBox value={searchQ} onChange={setSearchQ}
+          placeholder="Tìm nhanh sản phẩm bất kỳ..." id="search-sl-global" />
         {gQ ? (
           globalResults.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon">🔍</div>
-              Không tìm thấy sản phẩm "{searchQ}"
-            </div>
+            <div className="empty-state"><div className="empty-icon">🔍</div>Không tìm thấy sản phẩm "{searchQ}"</div>
           ) : (
             <>
               <div style={{ padding: '4px 14px 8px', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>
-                {globalResults.length} kết quả — bấm chọn để nhập ngay
+                {globalResults.length} kết quả
               </div>
               {globalResults.map(p => {
-                const cat = MOCK_CATEGORIES.find(c => c.id === p.category_id);
+                const cat = categories.find(c => c.id === p.category_id);
                 return (
                   <div key={p.id} className="product-row" id={`sl-search-${p.id}`}
-                    onClick={() => {
-                      setSearchQ('');
-                      resetQtys();
-                      navigateTo('form', p.category_id, p.id);
-                    }}>
+                    onClick={() => { setSearchQ(''); resetQtys(); navigateTo('form', p.category_id, p.id); }}>
                     <div className="product-thumb" style={{ background: (cat?.color ?? '#4A90D9') + '22', fontSize: 22 }}>
                       {p.main_image_url
                         ? <img src={p.main_image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
@@ -437,7 +380,7 @@ function NhapSanLuongContent() {
           )
         ) : (
           <div className="cat-grid">
-            {MOCK_CATEGORIES.map(cat => {
+            {categories.map(cat => {
               const count = products.filter(p => p.category_id === cat.id && p.active).length;
               return (
                 <button key={cat.id} className="cat-card" id={`sl-cat-${cat.id}`}
@@ -445,9 +388,7 @@ function NhapSanLuongContent() {
                   onClick={() => { navigateTo('product', cat.id); }}>
                   <span className="cat-icon">{cat.icon}</span>
                   <span className="cat-name">{cat.name}</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                    {count} SP
-                  </span>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{count} SP</span>
                 </button>
               );
             })}

@@ -17,8 +17,8 @@ export default function LoginPage() {
 
   const handleDel = () => setPin(p => p.slice(0, -1));
 
-  const handleLogin = () => {
-    if (login(pin)) {
+  const handleLogin = async () => {
+    if (await login(pin)) {
       router.replace('/don-hang');
     } else {
       setError('Sai PIN. Thử lại!');

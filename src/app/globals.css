@@ -321,3 +321,9 @@ html, body {
 }
 .scroll-top-padding { padding-top: 8px; }
 .due-today { color: var(--warning); font-weight: 700; }
+
+/* FIX: Spin animation cho nút refresh */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import BottomNav from '@/components/BottomNav';
 import { useAuth } from '@/lib/AuthContext';
-import { MOCK_PRODUCTS, MOCK_CATEGORIES, getProductById, loadProductionLogs } from '@/lib/mockData';
+import { supabase } from '@/lib/supabaseClient';
 
 function getMonthRange(year: number, month: number) {
   const start = `${year}-${String(month).padStart(2, '0')}-01`;
@@ -16,10 +16,18 @@ export default function BaoCaoPage() {
   const [mounted, setMounted] = useState(false);
   const [selMonth, setSelMonth] = useState(1);
   const [selYear, setSelYear] = useState(2026);
-  const [logs, setLogs] = useState<import('@/lib/mockData').ProductionLog[]>([]);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
 
-  const loadLogs = () => {
-    setLogs(loadProductionLogs());
+  const loadData = async () => {
+    const { data: logsData } = await supabase.from('production_logs').select('*');
+    const { data: categoriesData } = await supabase.from('categories').select('*');
+    const { data: productsData } = await supabase.from('products').select('*');
+
+    if (logsData) setLogs(logsData);
+    if (categoriesData) setCategories(categoriesData);
+    if (productsData) setProducts(productsData);
   };
 
   useEffect(() => {
@@ -27,14 +35,9 @@ export default function BaoCaoPage() {
     const now = new Date();
     setSelMonth(now.getMonth() + 1);
     setSelYear(now.getFullYear());
-    loadLogs();
-    window.addEventListener('productionLogsUpdated', loadLogs);
-    return () => {
-      window.removeEventListener('productionLogsUpdated', loadLogs);
-    };
+    loadData();
   }, []);
 
-  // Chưa mounted: render loading
   if (!mounted) {
     return (
       <div className="app-shell">
@@ -55,29 +58,28 @@ export default function BaoCaoPage() {
   }
 
   const { start, end } = getMonthRange(selYear, selMonth);
-  const monthLogs = logs.filter(l => l.log_date >= start && l.log_date <= end);
+  const monthLogs = logs.filter((l: any) => l.log_date >= start && l.log_date <= end);
+  const totalQty = monthLogs.reduce((s: number, l: any) => s + l.quantity, 0);
 
-  const totalQty = monthLogs.reduce((s, l) => s + l.quantity, 0);
-
-  // Tổng theo danh mục
+  // Theo danh mục
   const byCat: Record<string, number> = {};
-  monthLogs.forEach(l => {
-    const p = getProductById(l.product_id);
+  monthLogs.forEach((l: any) => {
+    const p = products.find((x: any) => x.id === l.product_id);
     if (p) byCat[p.category_id] = (byCat[p.category_id] || 0) + l.quantity;
   });
 
   // Top sản phẩm
   const byProd: Record<string, number> = {};
-  monthLogs.forEach(l => { byProd[l.product_id] = (byProd[l.product_id] || 0) + l.quantity; });
-  const topProds = Object.entries(byProd).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  monthLogs.forEach((l: any) => { byProd[l.product_id] = (byProd[l.product_id] || 0) + l.quantity; });
+  const topProds = Object.entries(byProd).sort((a: any, b: any) => b[1] - a[1]).slice(0, 5);
 
   // Theo size
   const bySize: Record<string, number> = {};
-  monthLogs.forEach(l => { bySize[l.size] = (bySize[l.size] || 0) + l.quantity; });
+  monthLogs.forEach((l: any) => { bySize[l.size] = (bySize[l.size] || 0) + l.quantity; });
 
   // Theo màu
   const byColor: Record<string, number> = {};
-  monthLogs.forEach(l => { byColor[l.color] = (byColor[l.color] || 0) + l.quantity; });
+  monthLogs.forEach((l: any) => { byColor[l.color] = (byColor[l.color] || 0) + l.quantity; });
 
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
@@ -95,7 +97,7 @@ export default function BaoCaoPage() {
             <select value={selYear} onChange={e => setSelYear(+e.target.value)}
               style={{ padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 15, background: '#fff' }}
               id="sel-year">
-              {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+              {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
         </div>
@@ -112,7 +114,7 @@ export default function BaoCaoPage() {
           {Object.entries(byCat).length === 0
             ? <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Không có dữ liệu</div>
             : Object.entries(byCat).map(([catId, qty]) => {
-              const cat = MOCK_CATEGORIES.find(c => c.id === catId);
+              const cat = categories.find((c: any) => c.id === catId);
               return (
                 <div key={catId} className="report-row">
                   <span>{cat?.icon} {cat?.name}</span>
@@ -129,7 +131,7 @@ export default function BaoCaoPage() {
           {topProds.length === 0
             ? <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Không có dữ liệu</div>
             : topProds.map(([pId, qty], i) => {
-              const p = getProductById(pId);
+              const p = products.find((x: any) => x.id === pId);
               return (
                 <div key={pId} className="report-row">
                   <span>{i + 1}. {p?.name}</span>
@@ -145,7 +147,7 @@ export default function BaoCaoPage() {
           <div className="report-stat-label" style={{ marginBottom: 12, fontWeight: 700 }}>Theo size</div>
           {Object.entries(bySize).length === 0
             ? <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Không có dữ liệu</div>
-            : Object.entries(bySize).sort((a, b) => b[1] - a[1]).map(([size, qty]) => (
+            : Object.entries(bySize).sort((a: any, b: any) => b[1] - a[1]).map(([size, qty]) => (
               <div key={size} className="report-row">
                 <span>Size {size}</span>
                 <b>{qty} cái</b>
@@ -159,7 +161,7 @@ export default function BaoCaoPage() {
           <div className="report-stat-label" style={{ marginBottom: 12, fontWeight: 700 }}>Theo màu</div>
           {Object.entries(byColor).length === 0
             ? <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Không có dữ liệu</div>
-            : Object.entries(byColor).sort((a, b) => b[1] - a[1]).map(([color, qty]) => (
+            : Object.entries(byColor).sort((a: any, b: any) => b[1] - a[1]).map(([color, qty]) => (
               <div key={color} className="report-row">
                 <span>{color}</span>
                 <b>{qty} cái</b>
@@ -168,13 +170,12 @@ export default function BaoCaoPage() {
           }
         </div>
 
-        {/* Xuất Excel */}
         <div style={{ padding: '8px 12px 16px' }}>
           <button className="btn btn-primary btn-full" id="btn-xuat-excel" style={{ fontSize: 16 }}>
             📥 Xuất Excel
           </button>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', marginTop: 8 }}>
-            Xuất Excel định kỳ mỗi tháng để làm bản sao lưu dữ liệu.
+            Xuất Excel định kỳ mỗi tháng
           </p>
         </div>
       </div>
