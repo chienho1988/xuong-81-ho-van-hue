@@ -8,6 +8,31 @@ import { Category, Product, ProductVariant } from '@/lib/mockData';
 import { getCategories, getProducts } from '@/lib/supabaseService';
 import { supabase } from '@/lib/supabaseClient';
 
+// Nén ảnh trước khi lưu (resize tối đa 800px, JPEG 72%) — tránh lưu base64 quá nặng vào DB
+function compressImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 800;
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('canvas'));
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
+      };
+      img.onerror = reject;
+      img.src = reader.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function ProductForm({ catId, product, onSave, onCancel }: {
   catId: string; product?: Product;
   onSave: (p: Partial<Product> & { imageFile?: File; variantFiles: Record<string, File> }) => void;
@@ -56,18 +81,23 @@ function ProductForm({ catId, product, onSave, onCancel }: {
     setCustomSize('');
   };
   const removeSize = (sz: string) => setSizes(prev => prev.filter(s => s !== sz));
-  const handleMainImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMainImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return;
     setMainImageFile(e.target.files[0]);
-    const reader = new FileReader();
-    reader.onload = ev => setMainImagePreview(ev.target?.result as string);
-    reader.readAsDataURL(e.target.files[0]);
+    try {
+      setMainImagePreview(await compressImage(e.target.files[0]));
+    } catch {
+      alert('Không đọc được ảnh, vui lòng chọn ảnh khác');
+    }
   };
-  const handleVariantImageChange = (variantId: string, file: File) => {
+  const handleVariantImageChange = async (variantId: string, file: File) => {
     setVariantFiles(prev => ({ ...prev, [variantId]: file }));
-    const reader = new FileReader();
-    reader.onload = ev => setVariantPreviews(prev => ({ ...prev, [variantId]: ev.target?.result as string }));
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file);
+      setVariantPreviews(prev => ({ ...prev, [variantId]: compressed }));
+    } catch {
+      alert('Không đọc được ảnh, vui lòng chọn ảnh khác');
+    }
   };
   const updateVariantNote = (id: string, note: string) => setVariants(prev => prev.map(v => v.id === id ? { ...v, note } : v));
   const handleSave = () => {
@@ -180,18 +210,47 @@ function DanhMucContent() {
   const getProductsByCat = (catId: string) => products.filter(p => p.category_id === catId && p.active);
 
   const handleSaveProduct = async (data: Partial<Product> & { imageFile?: File; variantFiles?: Record<string, File> }) => {
-    const newProd: Product = {
-      id: `p_${Date.now()}`, category_id: selCat?.id ?? '', name: data.name ?? '',
+    // Sửa thì giữ id cũ, thêm mới thì tạo id mới
+    const isEdit = view === 'edit-product' && !!selProduct;
+    const prodId = isEdit ? selProduct!.id : `p_${Date.now()}`;
+    const catId = data.category_id || selCat?.id || selProduct?.category_id || '';
+
+    // QUAN TRỌNG: bảng products KHÔNG có cột "variants" — phải tách riêng,
+    // gửi kèm sẽ bị PostgREST từ chối toàn bộ payload
+    const productRow = {
+      id: prodId, category_id: catId, name: data.name ?? '',
       main_image_url: data.main_image_url ?? null, description: data.description ?? '',
-      colors: data.colors ?? [], sizes: data.sizes ?? [], variants: data.variants ?? [], active: data.active ?? true,
+      colors: data.colors ?? [], sizes: data.sizes ?? [], active: data.active ?? true,
     };
-    await supabase.from('products').upsert(newProd);
-    if (newProd.variants.length > 0) {
-      await supabase.from('product_variants').upsert(newProd.variants.map(v => ({ ...v, product_id: newProd.id })));
+    const { error } = await supabase.from('products').upsert(productRow);
+    if (error) {
+      console.error('[SanPham] Save product error:', error);
+      alert(`❌ Không lưu được sản phẩm: ${error.message}`);
+      return;
     }
+
+    const variants = (data.variants ?? []).map(v => ({
+      id: v.id, product_id: prodId, color: v.color, size: v.size,
+      image_url: v.image_url, current_quantity: v.current_quantity ?? 0, note: v.note ?? '',
+    }));
+    if (variants.length > 0) {
+      const { error: vErr } = await supabase.from('product_variants').upsert(variants);
+      if (vErr) {
+        console.error('[SanPham] Save variants error:', vErr);
+        alert(`⚠️ Đã lưu sản phẩm nhưng lỗi phân loại: ${vErr.message}`);
+      }
+      // Khi sửa: xoá các phân loại đã bị bỏ (màu/size bị gỡ khỏi sản phẩm)
+      if (isEdit) {
+        await supabase.from('product_variants')
+          .delete()
+          .eq('product_id', prodId)
+          .not('id', 'in', `(${variants.map(v => `"${v.id}"`).join(',')})`);
+      }
+    }
+
     await reloadProducts();
-    setSavedMsg(`✅ Đã lưu "${newProd.name}"`);
-    navigateTo('products', selCat?.id);
+    setSavedMsg(`✅ Đã lưu "${productRow.name}"`);
+    navigateTo('products', catId);
     setTimeout(() => setSavedMsg(''), 3000);
   };
 
@@ -204,6 +263,25 @@ function DanhMucContent() {
             <div><h1 style={{ fontSize: 18 }}>Thêm sản phẩm</h1><div className="subtitle">{selCat.icon} {selCat.name}</div></div>
           </div>
           <div style={{ padding: '12px' }}><ProductForm catId={selCat.id} onSave={handleSaveProduct} onCancel={() => navigateTo('products', selCat.id)} /></div>
+        </div>
+        <BottomNav />
+      </div>
+    );
+  }
+
+  if (view === 'edit-product' && selProduct) {
+    const cat = categories.find(c => c.id === selProduct.category_id);
+    return (
+      <div className="app-shell">
+        <div className="page-content">
+          <div className="page-header" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => navigateTo('product-detail', selProduct.category_id, selProduct.id)} style={{ padding: 8, minHeight: 40 }}>‹</button>
+            <div><h1 style={{ fontSize: 18 }}>Sửa sản phẩm</h1><div className="subtitle">{cat?.icon} {selProduct.name}</div></div>
+          </div>
+          <div style={{ padding: '12px' }}>
+            <ProductForm catId={selProduct.category_id} product={selProduct} onSave={handleSaveProduct}
+              onCancel={() => navigateTo('product-detail', selProduct.category_id, selProduct.id)} />
+          </div>
         </div>
         <BottomNav />
       </div>
@@ -245,7 +323,8 @@ function DanhMucContent() {
             </div>
             {user?.role === 'admin' && (
               <div style={{ display: 'flex', gap: 10, marginTop: 32 }}>
-                <button className="btn btn-outline btn-full" id="btn-edit-product">✏️ Sửa</button>
+                <button className="btn btn-outline btn-full" id="btn-edit-product"
+                  onClick={() => navigateTo('edit-product', selProduct.category_id, selProduct.id)}>✏️ Sửa</button>
                 <button className="btn btn-danger btn-full" id="btn-delete-product"
                   onClick={async () => {
                     await supabase.from('products').delete().eq('id', selProduct.id);
@@ -312,7 +391,7 @@ function DanhMucContent() {
             <div className="modal-sheet" onClick={e => e.stopPropagation()}>
               <div className="modal-title">Xác nhận xoá</div>
               <p style={{ fontSize: 16, lineHeight: 1.6 }}>Bạn có chắc muốn xoá sản phẩm <b>{deleteTarget.name}</b> không?</p>
-              <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 8 }}>Lịch sử sản lượng và đơn hàng cũ vẫn được giữ lại.</p>
+              <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 8 }}>⚠️ Đơn hàng và lịch sử sản lượng của sản phẩm này cũng sẽ bị xoá theo.</p>
               <div className="modal-actions">
                 <button className="btn btn-outline" onClick={() => setDeleteTarget(null)}>Huỷ</button>
                 <button className="btn btn-danger" id="btn-confirm-delete" onClick={async () => {

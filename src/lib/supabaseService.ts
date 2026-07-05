@@ -74,17 +74,19 @@ export async function getProductById(id: string): Promise<Product | null> {
 export async function saveProduct(product: Product): Promise<void> {
   const { variants, ...productData } = product;
 
-  await supabase.from('products').upsert({
+  const { error } = await supabase.from('products').upsert({
     ...productData,
     colors: product.colors || [],
     sizes: product.sizes || [],
   });
+  if (error) throw error;
 
-  // Upsert variants
+  // Upsert variants (phải gắn product_id vì kiểu ProductVariant không có sẵn)
   if (variants && variants.length > 0) {
-    for (const v of variants) {
-      await supabase.from('product_variants').upsert(v);
-    }
+    const { error: vErr } = await supabase
+      .from('product_variants')
+      .upsert(variants.map(v => ({ ...v, product_id: product.id })));
+    if (vErr) throw vErr;
   }
 }
 

@@ -28,33 +28,26 @@ export function useAutoRefresh({
   useEffect(() => {
     if (!enabled) return;
 
-    console.log(`[AutoRefresh] Starting for table=${table} interval=${intervalMs}ms`);
-
     // Initial fetch
-    callback().then(() => console.log(`[AutoRefresh] Initial fetch done for ${table}`));
+    callback();
 
     // Realtime subscription
     const channelName = `${table}-${Math.random().toString(36).slice(2, 8)}`;
     const channel = supabase
       .channel(channelName)
-      .on('postgres_changes', { event, schema: 'public', table }, (payload) => {
-        console.log(`[AutoRefresh] 🔴 Realtime event on ${table}:`, payload.eventType, (payload.new as any)?.id || (payload.old as any)?.id);
+      .on('postgres_changes', { event, schema: 'public', table }, () => {
         callback();
       })
-      .subscribe((status) => {
-        console.log(`[AutoRefresh] Realtime channel ${channelName} status:`, status);
-      });
+      .subscribe();
 
     // Poll interval (fallback)
     const interval = setInterval(() => {
-      console.log(`[AutoRefresh] ⏱ Polling ${table}...`);
       callback();
     }, intervalMs);
 
     // visibilitychange
     const onVisible = () => {
       if (document.visibilityState === 'visible') {
-        console.log(`[AutoRefresh] 👁 Tab visible → refetch ${table}`);
         callback();
       }
     };
@@ -62,13 +55,11 @@ export function useAutoRefresh({
 
     // window focus
     const onFocus = () => {
-      console.log(`[AutoRefresh] 🎯 Window focus → refetch ${table}`);
       callback();
     };
     window.addEventListener('focus', onFocus);
 
     return () => {
-      console.log(`[AutoRefresh] Cleaning up for ${table}`);
       supabase.removeChannel(channel);
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisible);
