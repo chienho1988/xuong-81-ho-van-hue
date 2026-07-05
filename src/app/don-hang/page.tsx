@@ -27,12 +27,34 @@ function formatWhen(iso: string | null) {
   return sameDay ? time : `${d.getDate()}/${d.getMonth() + 1} ${time}`;
 }
 
-function ProductThumb({ icon, color, image }: { icon?: string; color?: string; image?: string | null }) {
+function ProductThumb({ icon, color, image, onImageClick }: {
+  icon?: string; color?: string; image?: string | null;
+  onImageClick?: (img: string) => void;
+}) {
   return (
-    <div className="order-thumb" style={{ background: (color ?? '#4A90D9') + '1A' }}>
+    <div className="order-thumb"
+      style={{ background: (color ?? '#4A90D9') + '1A', cursor: image && onImageClick ? 'zoom-in' : 'default' }}
+      onClick={() => { if (image && onImageClick) onImageClick(image); }}>
       {image
         ? <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         : (icon || '👔')}
+    </div>
+  );
+}
+
+// Lightbox xem ảnh to — bấm nền hoặc ✕ để đóng
+function ImageLightbox({ image, onClose }: { image: string; onClose: () => void }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}
+      style={{ alignItems: 'center', background: 'rgba(0,0,0,.78)', zIndex: 400, padding: 16 }}>
+      <button onClick={onClose} aria-label="Đóng"
+        style={{
+          position: 'absolute', top: 14, right: 14, width: 40, height: 40, borderRadius: 20,
+          border: 'none', background: 'rgba(255,255,255,.18)', color: '#fff',
+          fontSize: 18, fontWeight: 700, cursor: 'pointer',
+        }}>✕</button>
+      <img src={image} alt="" onClick={e => e.stopPropagation()}
+        style={{ maxWidth: '92vw', maxHeight: '80vh', borderRadius: 12, objectFit: 'contain', boxShadow: '0 8px 40px rgba(0,0,0,.5)' }} />
     </div>
   );
 }
@@ -92,10 +114,11 @@ function NotifPanel({ orders, products, onClose, onReadAll }: {
 }
 
 // ─── THẺ ĐƠN HÀNG (dùng chung admin + công nhân) ───────────────
-function OrderCard({ order, products, isAdmin, onDone, onPartial, onDelete, onPin, onToggleUrgent }: {
+function OrderCard({ order, products, isAdmin, onDone, onPartial, onDelete, onPin, onToggleUrgent, onEdit, onImageClick }: {
   order: Order; products: ProductMap; isAdmin: boolean;
   onDone: (o: Order) => void; onPartial: (o: Order) => void;
   onDelete: (o: Order) => void; onPin: (o: Order) => void; onToggleUrgent: (o: Order) => void;
+  onEdit: (o: Order) => void; onImageClick: (img: string) => void;
 }) {
   const product = products[order.product_id];
   const isUrgent = order.priority === 'urgent';
@@ -105,7 +128,7 @@ function OrderCard({ order, products, isAdmin, onDone, onPartial, onDelete, onPi
   return (
     <div className={`order-card ${isUrgent ? 'urgent' : ''}`}>
       <div className="order-row">
-        <ProductThumb icon={product?.icon} color={product?.color} image={imageForOrder(product, order.color)} />
+        <ProductThumb icon={product?.icon} color={product?.color} image={imageForOrder(product, order.color)} onImageClick={onImageClick} />
         <div className="order-main">
           <div className="order-title">
             {product?.name || 'Sản phẩm đã xoá'}
@@ -127,6 +150,9 @@ function OrderCard({ order, products, isAdmin, onDone, onPartial, onDelete, onPi
       {isAdmin ? (
         <div className="order-actions">
           <span className="order-time">Tạo {formatWhen(order.created_at)}</span>
+          <button className="act-btn" id={`btn-edit-${order.id}`} onClick={() => onEdit(order)}>
+            ✏️ Sửa
+          </button>
           <button className={`act-btn ${isUrgent ? 'on' : ''}`} id={`btn-urgent-${order.id}`}
             onClick={() => onToggleUrgent(order)}>
             🔥 {isUrgent ? 'Bỏ gấp' : 'Gấp'}
@@ -158,12 +184,12 @@ function OrderCard({ order, products, isAdmin, onDone, onPartial, onDelete, onPi
   );
 }
 
-function DoneCard({ order, products }: { order: Order; products: ProductMap }) {
+function DoneCard({ order, products, onImageClick }: { order: Order; products: ProductMap; onImageClick: (img: string) => void }) {
   const product = products[order.product_id];
   return (
     <div className="order-card done">
       <div className="order-row">
-        <ProductThumb icon={product?.icon} color={product?.color} image={imageForOrder(product, order.color)} />
+        <ProductThumb icon={product?.icon} color={product?.color} image={imageForOrder(product, order.color)} onImageClick={onImageClick} />
         <div className="order-main">
           <div className="order-title" style={{ fontSize: 14.5 }}>{product?.name || 'Sản phẩm đã xoá'}</div>
           <div className="order-chips">
@@ -200,6 +226,7 @@ export default function DonHangPage() {
   const [showNotif, setShowNotif] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState('');
+  const [lightbox, setLightbox] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -357,6 +384,8 @@ export default function DonHangPage() {
     onDelete: (o: Order) => setDeleteConfirm(o),
     onPin: handlePin,
     onToggleUrgent: handleToggleUrgent,
+    onEdit: (o: Order) => router.push(`/tao-don?edit=${o.id}`),
+    onImageClick: (img: string) => setLightbox(img),
   };
 
   return (
@@ -403,7 +432,7 @@ export default function DonHangPage() {
         {isAdmin && activeTab === 'done' && (
           doneOrders.length === 0
             ? <div className="empty-state"><div className="empty-icon">📋</div>Chưa có đơn nào hoàn thành</div>
-            : doneOrders.map(o => <DoneCard key={o.id} order={o} products={products} />)
+            : doneOrders.map(o => <DoneCard key={o.id} order={o} products={products} onImageClick={setLightbox} />)
         )}
 
         {/* ── Đã xong hôm nay (công nhân) ── */}
@@ -412,7 +441,7 @@ export default function DonHangPage() {
             <button className="collapse-toggle" onClick={() => setShowDoneToday(s => !s)}>
               {showDoneToday ? '▼' : '▶'} Đã xong hôm nay ({doneToday.length})
             </button>
-            {showDoneToday && doneToday.map(o => <DoneCard key={o.id} order={o} products={products} />)}
+            {showDoneToday && doneToday.map(o => <DoneCard key={o.id} order={o} products={products} onImageClick={setLightbox} />)}
           </>
         )}
       </div>
@@ -477,6 +506,8 @@ export default function DonHangPage() {
           </div>
         </div>
       )}
+
+      {lightbox && <ImageLightbox image={lightbox} onClose={() => setLightbox(null)} />}
 
       {toast && <div className="toast">{toast}</div>}
     </div>

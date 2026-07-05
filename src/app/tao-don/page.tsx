@@ -1,18 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
 import BottomNav from '@/components/BottomNav';
 import { Category, Product, Order } from '@/lib/mockData';
-import { getCategories, getProductsByCategory } from '@/lib/supabaseService';
+import { getCategories, getProductsByCategory, getProductById } from '@/lib/supabaseService';
 import { supabase } from '@/lib/supabaseClient';
 
 type Step = 'category' | 'product' | 'form' | 'success';
 
-export default function TaoDonPage() {
+function TaoDonContent() {
   const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Mode sửa đơn pending (mục 4.3): /tao-don?edit=<order_id>
+  const editOrderId = searchParams.get('edit') || '';
+  const [editOrder, setEditOrder] = useState<Order | null>(null);
+  const isEdit = !!editOrderId;
 
   // Dùng state thay vì URL params — tránh lỗi đồng bộ
   const [step, setStep] = useState<Step>('category');
@@ -35,6 +40,37 @@ export default function TaoDonPage() {
       setCategories(cats);
     }).catch(err => console.error('[TaoDon] Error loading categories:', err));
   }, []);
+
+  // Mode sửa: nạp đơn + sản phẩm, điền sẵn form
+  useEffect(() => {
+    if (!editOrderId) return;
+    (async () => {
+      const { data: order } = await supabase.from('orders').select('*').eq('id', editOrderId).single();
+      if (!order || order.status !== 'pending') {
+        alert('Đơn này không còn ở trạng thái chờ may nên không sửa được.');
+        router.replace('/don-hang');
+        return;
+      }
+      const prod = await getProductById(order.product_id);
+      if (!prod) {
+        alert('Sản phẩm của đơn này không còn tồn tại.');
+        router.replace('/don-hang');
+        return;
+      }
+      const t = new Date().toISOString().split('T')[0];
+      const tm = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      setEditOrder(order);
+      setSelProduct(prod);
+      setSelSize(order.size);
+      setSelColor(order.color);
+      setQty(order.quantity);
+      setPriority(order.priority);
+      setDueOpt(order.due_date === t ? 'today' : order.due_date === tm ? 'tomorrow' : 'none');
+      setNote(order.note || '');
+      setStep('form');
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editOrderId]);
 
   // Load products khi chọn category
   const loadProductsByCat = (catId: string) => {
@@ -68,6 +104,39 @@ export default function TaoDonPage() {
 
   const handleGuiDon = async () => {
     if (!selProduct || !selSize || !selColor) return;
+
+    // ── MODE SỬA: UPDATE đúng record, KHÔNG tạo đơn mới ──
+    if (isEdit && editOrder) {
+      const qtyChanged = qty !== editOrder.quantity;
+      const { error: updErr } = await supabase.from('orders').update({
+        size: selSize,
+        color: selColor,
+        quantity: qty,
+        // Số lượng đổi -> reset phần còn lại theo số mới; không đổi -> giữ tiến độ
+        remaining_quantity: qtyChanged ? qty : editOrder.remaining_quantity,
+        priority: priority,
+        due_date: dueDate,
+        note: note.trim(),
+      }).eq('id', editOrder.id);
+      if (updErr) {
+        console.error('[TaoDon] ❌ Update error:', updErr);
+        alert('Lỗi khi lưu thay đổi: ' + updErr.message);
+        return;
+      }
+      // Báo công nhân đơn đã được cập nhật — fire-and-forget, dùng lại kênh push đơn mới
+      const updTitle = priority === 'urgent'
+        ? `🔥 GẤP (cập nhật) — ${selProduct.name} · ${selColor} · ${selSize} · ${qty} cái`
+        : `Cập nhật đơn — ${selProduct.name} · ${selColor} · ${selSize} · ${qty} cái`;
+      fetch('/api/send-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'worker', title: updTitle, body: 'Admin vừa sửa đơn, bấm để xem' }),
+      }).catch(() => {});
+
+      setLastOrder({ product: selProduct, size: selSize, color: selColor, qty });
+      setStep('success');
+      return;
+    }
 
     const newOrder: Order = {
       id: `o_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -108,17 +177,19 @@ export default function TaoDonPage() {
         <div className="page-content">
           <div className="success-page">
             <div className="success-icon">✅</div>
-            <div className="success-title">Đã gửi đơn!</div>
+            <div className="success-title">{isEdit ? 'Đã lưu thay đổi!' : 'Đã gửi đơn!'}</div>
             <div className="success-detail">
               {lastOrder.product.name}<br />
               {lastOrder.color} · {lastOrder.size} · {lastOrder.qty} cái<br />
               {priority === 'urgent' && <span style={{ color: 'var(--danger)', fontWeight: 700 }}>🔥 GẤP</span>}
             </div>
             <div className="success-actions">
-              <button className="btn btn-outline btn-full" id="btn-dat-them" onClick={() => {
-                setSelSize(''); setSelColor(''); setQty(5); setNote('');
-                setStep('form');
-              }}>Đặt thêm (cùng sản phẩm)</button>
+              {!isEdit && (
+                <button className="btn btn-outline btn-full" id="btn-dat-them" onClick={() => {
+                  setSelSize(''); setSelColor(''); setQty(5); setNote('');
+                  setStep('form');
+                }}>Đặt thêm (cùng sản phẩm)</button>
+              )}
               <button className="btn btn-primary btn-full" id="btn-hoan-thanh-don" onClick={() => router.push('/don-hang')}>Hoàn thành</button>
             </div>
           </div>
@@ -135,8 +206,8 @@ export default function TaoDonPage() {
       <div className="app-shell">
         <div className="page-content">
           <div className="page-header" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button className="btn btn-ghost btn-sm" onClick={() => setStep('product')} style={{ padding: '8px', minHeight: 40 }}>‹</button>
-            <div><h1 style={{ fontSize: 18 }}>Tạo đơn</h1><div className="subtitle">{selProduct.name}</div></div>
+            <button className="btn btn-ghost btn-sm" onClick={() => isEdit ? router.push('/don-hang') : setStep('product')} style={{ padding: '8px', minHeight: 40 }}>‹</button>
+            <div><h1 style={{ fontSize: 18 }}>{isEdit ? 'Sửa đơn' : 'Tạo đơn'}</h1><div className="subtitle">{selProduct.name}</div></div>
           </div>
           <div style={{ padding: '12px 16px 120px' }}>
             <div style={{ display: 'flex', gap: 12, padding: 14, background: '#fff', borderRadius: 12, border: '1px solid var(--border)', marginBottom: 20, alignItems: 'center' }}>
@@ -196,7 +267,7 @@ export default function TaoDonPage() {
         <div className="sticky-bottom">
           <button className="btn btn-primary btn-full btn-lg" id="btn-gui-don" onClick={handleGuiDon}
             disabled={!selSize || !selColor} style={{ opacity: (!selSize || !selColor) ? .5 : 1 }}>
-            Gửi đơn
+            {isEdit ? 'Lưu thay đổi' : 'Gửi đơn'}
           </button>
         </div>
         <BottomNav />
@@ -241,6 +312,17 @@ export default function TaoDonPage() {
     );
   }
 
+  // Mode sửa: đang nạp dữ liệu đơn
+  if (isEdit && !editOrder) {
+    return (
+      <div className="app-shell">
+        <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80dvh' }}>
+          <span style={{ fontSize: 15, color: 'var(--text-secondary)' }}>Đang tải đơn...</span>
+        </div>
+      </div>
+    );
+  }
+
   // ── CHỌN DANH MỤC ──
   return (
     <div className="app-shell">
@@ -262,5 +344,13 @@ export default function TaoDonPage() {
       </div>
       <BottomNav />
     </div>
+  );
+}
+
+export default function TaoDonPage() {
+  return (
+    <Suspense fallback={<div className="app-shell"><div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Đang tải...</div></div>}>
+      <TaoDonContent />
+    </Suspense>
   );
 }
