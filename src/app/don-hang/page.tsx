@@ -8,7 +8,13 @@ import { Order } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
 
-type ProductMap = Record<string, { name: string; icon: string; color: string; image: string | null }>;
+type ProductMap = Record<string, { name: string; icon: string; color: string; image: string | null; colorImages: Record<string, string> }>;
+
+// Ảnh cho 1 đơn cụ thể: ưu tiên ảnh theo màu, fallback ảnh chung
+function imageForOrder(product: ProductMap[string] | undefined, orderColor: string): string | null {
+  if (!product) return null;
+  return product.colorImages[orderColor] || product.image;
+}
 
 // Hiển thị giờ theo múi giờ máy (không dùng slice ISO vì đó là giờ UTC)
 function formatWhen(iso: string | null) {
@@ -99,7 +105,7 @@ function OrderCard({ order, products, isAdmin, onDone, onPartial, onDelete, onPi
   return (
     <div className={`order-card ${isUrgent ? 'urgent' : ''}`}>
       <div className="order-row">
-        <ProductThumb icon={product?.icon} color={product?.color} image={product?.image} />
+        <ProductThumb icon={product?.icon} color={product?.color} image={imageForOrder(product, order.color)} />
         <div className="order-main">
           <div className="order-title">
             {product?.name || 'Sản phẩm đã xoá'}
@@ -157,7 +163,7 @@ function DoneCard({ order, products }: { order: Order; products: ProductMap }) {
   return (
     <div className="order-card done">
       <div className="order-row">
-        <ProductThumb icon={product?.icon} color={product?.color} image={product?.image} />
+        <ProductThumb icon={product?.icon} color={product?.color} image={imageForOrder(product, order.color)} />
         <div className="order-main">
           <div className="order-title" style={{ fontSize: 14.5 }}>{product?.name || 'Sản phẩm đã xoá'}</div>
           <div className="order-chips">
@@ -214,14 +220,18 @@ export default function DonHangPage() {
   };
 
   const loadProducts = async () => {
+    // select('*') để không lỗi khi cột color_images chưa được migrate
     const [{ data: categories }, { data: productsData }] = await Promise.all([
       supabase.from('categories').select('*'),
-      supabase.from('products').select('id, name, category_id, main_image_url'),
+      supabase.from('products').select('*'),
     ]);
     const map: ProductMap = {};
     for (const p of productsData || []) {
       const cat = categories?.find(c => c.id === p.category_id);
-      map[p.id] = { name: p.name, icon: cat?.icon || '👔', color: cat?.color || '#4A90D9', image: p.main_image_url || null };
+      map[p.id] = {
+        name: p.name, icon: cat?.icon || '👔', color: cat?.color || '#4A90D9',
+        image: p.main_image_url || null, colorImages: p.color_images || {},
+      };
     }
     setProducts(map);
     setProductsLoaded(true);

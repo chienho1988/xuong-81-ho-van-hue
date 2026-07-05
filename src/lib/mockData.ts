@@ -44,6 +44,8 @@ export interface Product {
   sizes: string[];
   variants: ProductVariant[];
   active: boolean;
+  // Ảnh riêng theo màu (key = tên màu). Màu không có ảnh -> fallback main_image_url.
+  color_images?: Record<string, string>;
 }
 
 export interface Order {

@@ -142,7 +142,15 @@ export default function TaoDonPage() {
             </div>
             <div className="form-group">
               <label className="form-label">Chọn màu</label>
-              <div className="pill-row">{selProduct.colors.map(c => (<button key={c} className={`pill ${selColor === c ? 'selected' : ''}`} onClick={() => setSelColor(c)} id={`pill-color-${c}`}>{c}</button>))}</div>
+              <div className="pill-row">{selProduct.colors.map(c => {
+                const thumb = selProduct.color_images?.[c] || selProduct.main_image_url;
+                return (
+                  <button key={c} className={`pill ${selColor === c ? 'selected' : ''}`} onClick={() => setSelColor(c)} id={`pill-color-${c}`}>
+                    {thumb && <img src={thumb} alt="" style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover', marginRight: 6, flexShrink: 0 }} />}
+                    {c}
+                  </button>
+                );
+              })}</div>
             </div>
             <div className="form-group">
               <label className="form-label">Số lượng</label>

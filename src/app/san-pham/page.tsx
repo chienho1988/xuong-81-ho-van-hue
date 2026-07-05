@@ -51,6 +51,7 @@ function ProductForm({ catId, product, onSave, onCancel }: {
   const [variants, setVariants] = useState<ProductVariant[]>(product?.variants ?? []);
   const [variantFiles, setVariantFiles] = useState<Record<string, File>>({});
   const [variantPreviews, setVariantPreviews] = useState<Record<string, string>>({});
+  const [colorImages, setColorImages] = useState<Record<string, string>>(product?.color_images ?? {});
 
   useEffect(() => {
     if (colors.length === 0 || sizes.length === 0) { setVariants([]); return; }
@@ -100,12 +101,30 @@ function ProductForm({ catId, product, onSave, onCancel }: {
     }
   };
   const updateVariantNote = (id: string, note: string) => setVariants(prev => prev.map(v => v.id === id ? { ...v, note } : v));
+  const handleColorImageChange = async (color: string, file: File) => {
+    try {
+      const compressed = await compressImage(file);
+      setColorImages(prev => ({ ...prev, [color]: compressed }));
+    } catch {
+      alert('Không đọc được ảnh, vui lòng chọn ảnh khác');
+    }
+  };
+  const removeColorImage = (color: string) => {
+    setColorImages(prev => {
+      const next = { ...prev };
+      delete next[color];
+      return next;
+    });
+  };
   const handleSave = () => {
     if (!name.trim()) return alert('Vui lòng nhập tên sản phẩm');
     if (colors.length === 0) return alert('Vui lòng thêm ít nhất 1 màu');
     if (sizes.length === 0) return alert('Vui lòng thêm ít nhất 1 size');
     const finalVariants = variants.map(v => ({ ...v, image_url: variantPreviews[v.id] || v.image_url }));
-    onSave({ name: name.trim(), category_id: catId, description, colors, sizes, variants: finalVariants, active, main_image_url: mainImagePreview, imageFile: mainImageFile, variantFiles });
+    // Chỉ giữ ảnh của những màu còn trong danh sách
+    const finalColorImages: Record<string, string> = {};
+    colors.forEach(c => { if (colorImages[c]) finalColorImages[c] = colorImages[c]; });
+    onSave({ name: name.trim(), category_id: catId, description, colors, sizes, variants: finalVariants, active, main_image_url: mainImagePreview, color_images: finalColorImages, imageFile: mainImageFile, variantFiles });
   };
 
   return (
@@ -135,6 +154,29 @@ function ProductForm({ catId, product, onSave, onCancel }: {
           <div style={{ display: 'flex', gap: 8 }}><input className="form-input" style={{ marginBottom: 0 }} placeholder="VD: S, M, L, Freesize..." value={customSize} onChange={e => setCustomSize(e.target.value)} onKeyDown={e => e.key === 'Enter' && addSize()} /><button className="btn btn-outline" onClick={addSize} style={{ flexShrink: 0 }}>+ Thêm</button></div>
         </div>
       </div>
+      {colors.length > 0 && (
+        <div style={{ background: '#fff', padding: '16px', borderRadius: 12, marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+          <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>Ảnh theo màu</h3>
+          <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 12 }}>Không bắt buộc — màu chưa có ảnh riêng sẽ dùng ảnh đại diện</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {colors.map(c => {
+              const img = colorImages[c];
+              return (
+                <div key={c} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <label htmlFor={`color-img-${c}`} style={{ width: 56, height: 56, borderRadius: 8, border: '1px dashed #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', background: img ? 'transparent' : '#fafafa', cursor: 'pointer', flexShrink: 0, overflow: 'hidden' }}>
+                    {img ? <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 20, color: '#aaa' }}>📷</span>}
+                  </label>
+                  <input id={`color-img-${c}`} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) handleColorImageChange(c, e.target.files[0]); e.target.value = ''; }} />
+                  <div style={{ flex: 1, fontWeight: 600 }}>{c}</div>
+                  {img
+                    ? <button onClick={() => removeColorImage(c)} style={{ border: 'none', background: 'none', color: 'var(--danger)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '4px 8px' }}>✕ Bỏ ảnh</button>
+                    : <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Dùng ảnh chung</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {variants.length > 0 && (
         <div style={{ background: '#fff', padding: '16px', borderRadius: 12, marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
           <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>3. Danh sách phân loại ({variants.length})</h3>
@@ -221,8 +263,15 @@ function DanhMucContent() {
       id: prodId, category_id: catId, name: data.name ?? '',
       main_image_url: data.main_image_url ?? null, description: data.description ?? '',
       colors: data.colors ?? [], sizes: data.sizes ?? [], active: data.active ?? true,
+      color_images: data.color_images ?? {},
     };
-    const { error } = await supabase.from('products').upsert(productRow);
+    let { error } = await supabase.from('products').upsert(productRow);
+    // DB chưa chạy migration supabase-add-color-images.sql -> lưu lại không kèm color_images
+    if (error && `${error.message}`.includes('color_images')) {
+      console.warn('[SanPham] Cột color_images chưa có — chạy supabase-add-color-images.sql trong SQL Editor để bật ảnh theo màu');
+      const { color_images: _omit, ...rowWithoutColorImages } = productRow;
+      ({ error } = await supabase.from('products').upsert(rowWithoutColorImages));
+    }
     if (error) {
       console.error('[SanPham] Save product error:', error);
       alert(`❌ Không lưu được sản phẩm: ${error.message}`);
