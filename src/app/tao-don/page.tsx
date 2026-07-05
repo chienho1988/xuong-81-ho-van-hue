@@ -128,8 +128,12 @@ export default function TaoDonPage() {
             <div><h1 style={{ fontSize: 18 }}>Tạo đơn</h1><div className="subtitle">{selProduct.name}</div></div>
           </div>
           <div style={{ padding: '12px 16px 120px' }}>
-            <div style={{ display: 'flex', gap: 12, padding: 14, background: '#fff', borderRadius: 12, border: '1px solid var(--border)', marginBottom: 20 }}>
-              <div className="order-thumb" style={{ background: cat?.color + '22' }}>{cat?.icon}</div>
+            <div style={{ display: 'flex', gap: 12, padding: 14, background: '#fff', borderRadius: 12, border: '1px solid var(--border)', marginBottom: 20, alignItems: 'center' }}>
+              <div className="order-thumb" style={{ background: cat?.color + '22', width: 64, height: 64 }}>
+                {selProduct.main_image_url
+                  ? <img src={selProduct.main_image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : cat?.icon}
+              </div>
               <div><div style={{ fontWeight: 700, fontSize: 16 }}>{selProduct.name}</div><div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{cat?.name}</div></div>
             </div>
             <div className="form-group">
@@ -198,8 +202,15 @@ export default function TaoDonPage() {
               products.map(p => (
                 <div key={p.id} className="product-row" id={`product-row-${p.id}`}
                   onClick={() => { setSelProduct(p); setStep('form'); }}>
-                  <div className="product-thumb">{cat?.icon || '👔'}</div>
-                  <div className="product-name">{p.name}</div>
+                  <div className="product-thumb" style={{ background: (cat?.color ?? '#4A90D9') + '22', overflow: 'hidden' }}>
+                    {p.main_image_url
+                      ? <img src={p.main_image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : (cat?.icon || '👔')}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div className="product-name">{p.name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{p.sizes.join(', ')} · {p.colors.slice(0, 3).join(', ')}</div>
+                  </div>
                   <span className="chevron">›</span>
                 </div>
               ))

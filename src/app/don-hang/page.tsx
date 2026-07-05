@@ -8,7 +8,7 @@ import { Order } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
 
-type ProductMap = Record<string, { name: string; icon: string; color: string }>;
+type ProductMap = Record<string, { name: string; icon: string; color: string; image: string | null }>;
 
 // Hiển thị giờ theo múi giờ máy (không dùng slice ISO vì đó là giờ UTC)
 function formatWhen(iso: string | null) {
@@ -21,10 +21,12 @@ function formatWhen(iso: string | null) {
   return sameDay ? time : `${d.getDate()}/${d.getMonth() + 1} ${time}`;
 }
 
-function ProductThumb({ icon, color }: { icon?: string; color?: string }) {
+function ProductThumb({ icon, color, image }: { icon?: string; color?: string; image?: string | null }) {
   return (
     <div className="order-thumb" style={{ background: (color ?? '#4A90D9') + '1A' }}>
-      {icon || '👔'}
+      {image
+        ? <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : (icon || '👔')}
     </div>
   );
 }
@@ -97,7 +99,7 @@ function OrderCard({ order, products, isAdmin, onDone, onPartial, onDelete, onPi
   return (
     <div className={`order-card ${isUrgent ? 'urgent' : ''}`}>
       <div className="order-row">
-        <ProductThumb icon={product?.icon} color={product?.color} />
+        <ProductThumb icon={product?.icon} color={product?.color} image={product?.image} />
         <div className="order-main">
           <div className="order-title">
             {product?.name || 'Sản phẩm đã xoá'}
@@ -155,7 +157,7 @@ function DoneCard({ order, products }: { order: Order; products: ProductMap }) {
   return (
     <div className="order-card done">
       <div className="order-row">
-        <ProductThumb icon={product?.icon} color={product?.color} />
+        <ProductThumb icon={product?.icon} color={product?.color} image={product?.image} />
         <div className="order-main">
           <div className="order-title" style={{ fontSize: 14.5 }}>{product?.name || 'Sản phẩm đã xoá'}</div>
           <div className="order-chips">
@@ -177,7 +179,10 @@ export default function DonHangPage() {
   const router = useRouter();
   const isAdmin = user?.role === 'admin';
 
-  const [mounted, setMounted] = useState(false);
+  const [ordersLoaded, setOrdersLoaded] = useState(false);
+  const [productsLoaded, setProductsLoaded] = useState(false);
+  // Chờ CẢ đơn hàng lẫn sản phẩm tải xong mới hiện — tránh chớp "Sản phẩm đã xoá"
+  const mounted = ordersLoaded && productsLoaded;
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<ProductMap>({});
   const [activeTab, setActiveTab] = useState<'pending' | 'done'>('pending');
@@ -205,20 +210,21 @@ export default function DonHangPage() {
       return;
     }
     setOrders(data || []);
-    setMounted(true);
+    setOrdersLoaded(true);
   };
 
   const loadProducts = async () => {
     const [{ data: categories }, { data: productsData }] = await Promise.all([
       supabase.from('categories').select('*'),
-      supabase.from('products').select('id, name, category_id'),
+      supabase.from('products').select('id, name, category_id, main_image_url'),
     ]);
     const map: ProductMap = {};
     for (const p of productsData || []) {
       const cat = categories?.find(c => c.id === p.category_id);
-      map[p.id] = { name: p.name, icon: cat?.icon || '👔', color: cat?.color || '#4A90D9' };
+      map[p.id] = { name: p.name, icon: cat?.icon || '👔', color: cat?.color || '#4A90D9', image: p.main_image_url || null };
     }
     setProducts(map);
+    setProductsLoaded(true);
   };
 
   useEffect(() => { loadProducts(); }, []);
