@@ -257,6 +257,17 @@ html, body {
   background: var(--primary); margin-top: 5px; flex-shrink: 0;
 }
 
+/* Nút icon trên header (thông báo / làm mới / đăng xuất) */
+.icon-btn {
+  width: 40px; height: 40px; border-radius: 10px;
+  border: 1px solid var(--border); background: #fff;
+  font-size: 19px; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0; color: var(--text);
+}
+.icon-btn:active { background: #F1F3F5; }
+.icon-btn:disabled { opacity: .6; }
+
 /* Thanh gợi ý bật thông báo (hiện khi chưa bật) */
 .push-enable-bar {
   display: flex; align-items: center; gap: 8px;

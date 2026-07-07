@@ -208,7 +208,7 @@ function DoneCard({ order, products, onImageClick }: { order: Order; products: P
 }
 
 export default function DonHangPage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const router = useRouter();
   const isAdmin = user?.role === 'admin';
 
@@ -346,7 +346,13 @@ export default function DonHangPage() {
     setEnablingPush(false);
     if (state === 'enabled') showToast('🔔 Đã bật thông báo đơn hàng');
     else if (state === 'denied') setShowDeniedHelp(true);
-    else if (state === 'unsupported') showToast('Trình duyệt này chưa hỗ trợ thông báo');
+    else if (state === 'unsupported') showToast('Mở bằng Chrome (Android) hoặc thêm app vào màn hình chính (iPhone) để bật thông báo');
+    else showToast('Chưa bật được thông báo, thử lại');
+  };
+
+  const handleLogout = () => {
+    logout();
+    router.push('/dang-nhap');
   };
 
   // Realtime + poll 2s + refetch khi quay lại tab
@@ -516,14 +522,23 @@ export default function DonHangPage() {
               {urgentCount > 0 && <span style={{ color: 'var(--danger)', fontWeight: 700 }}> · {urgentCount} 🔥 gấp</span>}
             </div>
           </div>
-          {isAdmin ? (
-            <BellButton onClick={() => setShowNotif(true)} count={unreadCount} />
-          ) : (
-            <button id="btn-refresh-worker" className="act-btn" onClick={manualRefresh} disabled={refreshing} style={{ minHeight: 40 }}>
-              <span style={{ display: 'inline-block', animation: refreshing ? 'spin 0.8s linear infinite' : 'none', marginRight: 4 }}>🔄</span>
-              {refreshing ? 'Đang tải' : 'Làm mới'}
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            {isAdmin ? (
+              <BellButton onClick={() => setShowNotif(true)} count={unreadCount} />
+            ) : (
+              <>
+                <button className="icon-btn" id="btn-enable-push-header" onClick={handleEnablePush} disabled={enablingPush}
+                  title="Thông báo" aria-label="Thông báo"
+                  style={pushState === 'enabled' ? undefined : { background: '#FFF7E6', borderColor: '#FFE0A3' }}>
+                  🔔
+                </button>
+                <button className="icon-btn" id="btn-refresh-worker" onClick={manualRefresh} disabled={refreshing} title="Làm mới" aria-label="Làm mới">
+                  <span style={{ display: 'inline-block', animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>🔄</span>
+                </button>
+              </>
+            )}
+            <button className="icon-btn" id="btn-logout" onClick={handleLogout} title="Đăng xuất" aria-label="Đăng xuất">🚪</button>
+          </div>
         </div>
 
         {/* ── Nút bật thông báo (hiện khi chưa bật) ── */}
