@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
 import BottomNav from '@/components/BottomNav';
@@ -227,10 +227,41 @@ export default function DonHangPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState('');
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null);
+
+  // Refs để phát hiện đơn mới trong closure của useAutoRefresh (tránh stale state)
+  const seenPendingIds = useRef<Set<string> | null>(null);
+  const roleRef = useRef<string | undefined>(undefined);
+  roleRef.current = user?.role;
+  const productsRef = useRef<ProductMap>({});
 
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(''), 2200);
+  };
+
+  // Tín hiệu đơn mới cho công nhân: rung + 2 tiếng bíp (best-effort, không cần file âm thanh)
+  const playNewOrderAlert = () => {
+    try { navigator.vibrate?.([150, 80, 150]); } catch {}
+    try {
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const beep = (freq: number, start: number, dur: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime + start);
+        gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + start + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + dur);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + start);
+        osc.stop(ctx.currentTime + start + dur);
+      };
+      beep(880, 0, 0.16);
+      beep(1175, 0.18, 0.22);
+    } catch {}
   };
 
   const loadOrders = async () => {
@@ -242,7 +273,31 @@ export default function DonHangPage() {
       console.error('[Orders] Query error:', error);
       return;
     }
-    setOrders(data || []);
+    const list = data || [];
+
+    // Phát hiện đơn mới (chỉ phía công nhân) để hiện thông báo trong app
+    if (roleRef.current === 'worker') {
+      const pendingIds = list.filter(o => o.status === 'pending').map(o => o.id);
+      if (seenPendingIds.current === null) {
+        // Lần đầu: ghi nhận, không báo (tránh báo hàng loạt đơn cũ)
+        seenPendingIds.current = new Set(pendingIds);
+      } else {
+        const fresh = pendingIds.filter(id => !seenPendingIds.current!.has(id));
+        seenPendingIds.current = new Set(pendingIds);
+        if (fresh.length > 0) {
+          const o = list.find(x => x.id === fresh[0]);
+          const name = (o && productsRef.current[o.product_id]?.name) || 'Sản phẩm';
+          setNewOrderAlert(
+            fresh.length > 1
+              ? `🔔 Có ${fresh.length} đơn hàng mới!`
+              : `🔔 Đơn mới: ${name} · ${o?.color} · ${o?.size} · ${o?.quantity} cái`
+          );
+          playNewOrderAlert();
+        }
+      }
+    }
+
+    setOrders(list);
     setOrdersLoaded(true);
   };
 
@@ -261,10 +316,18 @@ export default function DonHangPage() {
       };
     }
     setProducts(map);
+    productsRef.current = map;
     setProductsLoaded(true);
   };
 
   useEffect(() => { loadProducts(); }, []);
+
+  // Tự ẩn thông báo đơn mới sau 8 giây
+  useEffect(() => {
+    if (!newOrderAlert) return;
+    const t = setTimeout(() => setNewOrderAlert(null), 8000);
+    return () => clearTimeout(t);
+  }, [newOrderAlert]);
 
   // Realtime + poll 2s + refetch khi quay lại tab
   useAutoRefresh({ callback: loadOrders, table: 'orders' });
@@ -416,6 +479,13 @@ export default function DonHangPage() {
 
   return (
     <div className="app-shell">
+      {/* ── Thông báo đơn mới (công nhân, khi app đang mở) ── */}
+      {!isAdmin && newOrderAlert && (
+        <div className="new-order-alert" id="new-order-alert" onClick={() => setNewOrderAlert(null)}>
+          <span style={{ flex: 1 }}>{newOrderAlert}</span>
+          <button className="new-order-alert-x" aria-label="Đóng" onClick={e => { e.stopPropagation(); setNewOrderAlert(null); }}>✕</button>
+        </div>
+      )}
       <div className="page-content scroll-top-padding">
         {/* ── Header ── */}
         <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

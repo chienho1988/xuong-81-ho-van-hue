@@ -257,6 +257,29 @@ html, body {
   background: var(--primary); margin-top: 5px; flex-shrink: 0;
 }
 
+/* Thông báo đơn mới (công nhân) — banner nổi trên đầu màn hình */
+.new-order-alert {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+  width: calc(100% - 24px); max-width: 456px;
+  background: var(--success); color: #fff;
+  padding: 14px 16px; border-radius: 12px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 15px; font-weight: 700; line-height: 1.4;
+  box-shadow: 0 6px 24px rgba(0,0,0,.28);
+  z-index: 350; cursor: pointer;
+  animation: alert-drop .28s cubic-bezier(.2,.9,.3,1.2);
+}
+.new-order-alert-x {
+  background: rgba(255,255,255,.22); border: none; color: #fff;
+  width: 28px; height: 28px; border-radius: 14px;
+  font-size: 14px; font-weight: 700; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+@keyframes alert-drop {
+  from { opacity: 0; transform: translateX(-50%) translateY(-16px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
 /* Toast phản hồi hành động */
 .toast {
   position: fixed; bottom: calc(var(--nav-h) + 16px); left: 50%;
