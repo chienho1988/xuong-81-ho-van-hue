@@ -81,3 +81,43 @@ export async function requestPushPermission(userId: string): Promise<boolean> {
   if (perm !== 'granted') return false;
   return ensurePushSubscription(userId);
 }
+
+// Trạng thái thông báo để hiện đúng nút/hướng dẫn trong app
+export type PushState =
+  | 'unsupported'   // trình duyệt không hỗ trợ (vd Safari iOS chưa cài PWA)
+  | 'off'           // chưa bật (permission 'default', hoặc đã cho phép nhưng chưa có subscription)
+  | 'denied'        // đã bị chặn ở trình duyệt — không thể hỏi lại, phải mở cài đặt
+  | 'enabled';      // đã bật và đã có subscription
+
+export async function getPushState(): Promise<PushState> {
+  if (!isPushSupported()) return 'unsupported';
+  if (Notification.permission === 'denied') return 'denied';
+  if (Notification.permission === 'default') return 'off';
+  // permission === 'granted' -> kiểm tra đã có subscription chưa
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg ? await reg.pushManager.getSubscription() : null;
+    return sub ? 'enabled' : 'off';
+  } catch {
+    return 'off';
+  }
+}
+
+/**
+ * Bật thông báo theo yêu cầu rõ ràng của user (bấm nút "Bật").
+ * Xử lý mọi trạng thái quyền, trả về trạng thái cuối cùng.
+ * Bỏ qua cờ "Để sau" vì đây là hành động chủ động của user.
+ */
+export async function enablePush(userId: string): Promise<PushState> {
+  if (!isPushSupported()) return 'unsupported';
+  if (Notification.permission === 'denied') return 'denied';
+  if (Notification.permission === 'default') {
+    const perm = await Notification.requestPermission();
+    if (perm === 'denied') return 'denied';
+    if (perm !== 'granted') return 'off';
+  }
+  // Đã cho phép -> đăng ký + lưu subscription
+  try { localStorage.removeItem(DISMISS_KEY); } catch {}
+  const ok = await ensurePushSubscription(userId);
+  return ok ? 'enabled' : 'off';
+}

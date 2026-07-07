@@ -7,6 +7,7 @@ import BottomNav from '@/components/BottomNav';
 import { Order } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
+import { getPushState, enablePush, type PushState } from '@/lib/pushNotifications';
 
 type ProductMap = Record<string, { name: string; icon: string; color: string; image: string | null; colorImages: Record<string, string> }>;
 
@@ -228,6 +229,10 @@ export default function DonHangPage() {
   const [toast, setToast] = useState('');
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null);
+  const [pushState, setPushState] = useState<PushState>('enabled'); // mặc định ẩn để tránh nháy
+  const [pushBarDismissed, setPushBarDismissed] = useState(false);
+  const [showDeniedHelp, setShowDeniedHelp] = useState(false);
+  const [enablingPush, setEnablingPush] = useState(false);
 
   // Refs để phát hiện đơn mới trong closure của useAutoRefresh (tránh stale state)
   const seenPendingIds = useRef<Set<string> | null>(null);
@@ -328,6 +333,21 @@ export default function DonHangPage() {
     const t = setTimeout(() => setNewOrderAlert(null), 8000);
     return () => clearTimeout(t);
   }, [newOrderAlert]);
+
+  // Kiểm tra trạng thái thông báo khi vào màn hình (để hiện nút "Bật" nếu chưa bật)
+  useEffect(() => {
+    getPushState().then(setPushState);
+  }, []);
+
+  const handleEnablePush = async () => {
+    setEnablingPush(true);
+    const state = await enablePush(user?.id || '');
+    setPushState(state);
+    setEnablingPush(false);
+    if (state === 'enabled') showToast('🔔 Đã bật thông báo đơn hàng');
+    else if (state === 'denied') setShowDeniedHelp(true);
+    else if (state === 'unsupported') showToast('Trình duyệt này chưa hỗ trợ thông báo');
+  };
 
   // Realtime + poll 2s + refetch khi quay lại tab
   useAutoRefresh({ callback: loadOrders, table: 'orders' });
@@ -506,6 +526,22 @@ export default function DonHangPage() {
           )}
         </div>
 
+        {/* ── Nút bật thông báo (hiện khi chưa bật) ── */}
+        {!pushBarDismissed && (pushState === 'off' || pushState === 'denied') && (
+          <div className="push-enable-bar">
+            <span className="push-enable-icon">🔔</span>
+            <span style={{ flex: 1 }}>
+              {pushState === 'denied'
+                ? 'Thông báo đang bị chặn trên trình duyệt'
+                : `Bật thông báo để nhận báo đơn ${isAdmin ? 'hoàn thành' : 'hàng mới'}`}
+            </span>
+            <button className="push-enable-btn" id="btn-enable-push" onClick={handleEnablePush} disabled={enablingPush}>
+              {enablingPush ? '...' : (pushState === 'denied' ? 'Xem cách bật' : 'Bật')}
+            </button>
+            <button className="push-enable-x" aria-label="Đóng" onClick={() => setPushBarDismissed(true)}>✕</button>
+          </div>
+        )}
+
         {/* ── Tabs (admin) ── */}
         {isAdmin && (
           <div className="mini-tabs" style={{ background: '#fff' }}>
@@ -604,6 +640,26 @@ export default function DonHangPage() {
       )}
 
       {lightbox && <ImageLightbox image={lightbox} onClose={() => setLightbox(null)} />}
+
+      {showDeniedHelp && (
+        <div className="modal-overlay" onClick={() => setShowDeniedHelp(false)}>
+          <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+            <div className="modal-title">🔔 Bật lại thông báo</div>
+            <p style={{ fontSize: 15, lineHeight: 1.6, marginBottom: 12 }}>
+              Trước đây thông báo đã bị chặn nên trình duyệt không cho hỏi lại. Cách bật thủ công (trên Chrome điện thoại):
+            </p>
+            <ol style={{ fontSize: 15, lineHeight: 1.7, paddingLeft: 20, color: 'var(--text)' }}>
+              <li>Bấm biểu tượng <b>🔒</b> (hoặc <b>ⓘ / ⋮</b>) bên cạnh địa chỉ web ở trên cùng.</li>
+              <li>Chọn <b>Quyền</b> (Permissions) → <b>Thông báo</b> (Notifications).</li>
+              <li>Chuyển sang <b>Cho phép</b> (Allow).</li>
+              <li>Quay lại app, tải lại trang rồi bấm <b>Bật</b> lần nữa.</li>
+            </ol>
+            <div className="modal-actions">
+              <button className="btn btn-primary" onClick={() => setShowDeniedHelp(false)}>Đã hiểu</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && <div className="toast">{toast}</div>}
     </div>
