@@ -311,6 +311,28 @@ export default function DonHangPage() {
     );
   }
 
+  // Ghi nhật ký sản lượng khi hoàn thành đơn (nguồn dữ liệu của Lịch sử + Báo cáo)
+  const logProduction = async (order: Order, doneQty: number) => {
+    if (doneQty <= 0) return;
+    const now = new Date();
+    const { error } = await supabase.from('production_logs').insert({
+      id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      product_id: order.product_id,
+      worker_id: user?.id || 'u2',
+      order_id: order.id,
+      log_date: now.toISOString().split('T')[0],
+      size: order.size,
+      color: order.color,
+      quantity: doneQty,
+      note: '',
+      created_at: now.toISOString(),
+    });
+    if (error) {
+      console.error('[Orders] Không ghi được sản lượng:', error);
+      showToast('⚠️ Đơn đã xong nhưng chưa ghi được sản lượng');
+    }
+  };
+
   // Push cho admin khi công nhân xong đơn — fire-and-forget, không chặn UI
   const notifyAdminDone = (order: Order, doneQty: number, extra: string) => {
     if (user?.role !== 'worker') return;
@@ -336,6 +358,8 @@ export default function DonHangPage() {
       is_read_by_admin: false,
     });
     if (ok) {
+      // Ghi sản lượng đúng số vừa hoàn thành (phần còn lại của đơn)
+      await logProduction(confirmOrder, confirmOrder.remaining_quantity);
       showToast('✅ Đã hoàn thành đơn');
       notifyAdminDone(confirmOrder, confirmOrder.remaining_quantity, `Hoàn thành bởi ${user?.name || 'công nhân'}`);
     }
@@ -347,6 +371,8 @@ export default function DonHangPage() {
     const left = Math.max(0, partialOrder.remaining_quantity - partialQty);
     const ok = await updateOrder(partialOrder.id, { remaining_quantity: left });
     if (ok) {
+      // Ghi sản lượng đúng số vừa may trong lần này
+      await logProduction(partialOrder, partialQty);
       showToast(`✅ Đã may ${partialQty} cái, còn lại ${left}`);
       notifyAdminDone(partialOrder, partialQty, `Xong một phần — còn lại ${left} cái`);
     }
