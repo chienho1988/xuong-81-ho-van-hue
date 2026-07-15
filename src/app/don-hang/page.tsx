@@ -223,7 +223,6 @@ export default function DonHangPage() {
   const [partialOrder, setPartialOrder] = useState<Order | null>(null);
   const [partialQty, setPartialQty] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<Order | null>(null);
-  const [showDoneToday, setShowDoneToday] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState('');
@@ -376,7 +375,6 @@ export default function DonHangPage() {
     return true;
   };
 
-  const today = new Date().toISOString().split('T')[0];
   const pending = orders
     .filter(o => o.status === 'pending')
     .sort((a, b) => {
@@ -386,7 +384,6 @@ export default function DonHangPage() {
   const doneOrders = orders
     .filter(o => o.status === 'done')
     .sort((a, b) => (b.completed_at || '').localeCompare(a.completed_at || ''));
-  const doneToday = doneOrders.filter(o => o.completed_at?.startsWith(today));
   const urgentCount = pending.filter(o => o.priority === 'urgent').length;
   const unreadCount = orders.filter(o => o.status === 'done' && !o.is_read_by_admin).length;
 
@@ -557,39 +554,27 @@ export default function DonHangPage() {
           </div>
         )}
 
-        {/* ── Tabs (admin) ── */}
-        {isAdmin && (
-          <div className="mini-tabs" style={{ background: '#fff' }}>
-            <button className={`mini-tab ${activeTab === 'pending' ? 'active' : ''}`} onClick={() => setActiveTab('pending')} id="tab-pending">
-              Chờ may ({pending.length})
-            </button>
-            <button className={`mini-tab ${activeTab === 'done' ? 'active' : ''}`} onClick={() => setActiveTab('done')} id="tab-done">
-              Đã xong ({doneOrders.length})
-            </button>
-          </div>
-        )}
+        {/* ── Tabs Chờ may / Đã xong (dùng chung admin + công nhân) ── */}
+        <div className="mini-tabs" style={{ background: '#fff' }}>
+          <button className={`mini-tab ${activeTab === 'pending' ? 'active' : ''}`} onClick={() => setActiveTab('pending')} id="tab-pending">
+            Chờ may ({pending.length})
+          </button>
+          <button className={`mini-tab ${activeTab === 'done' ? 'active' : ''}`} onClick={() => setActiveTab('done')} id="tab-done">
+            Đã xong ({doneOrders.length})
+          </button>
+        </div>
         <div className="mt-8" />
 
-        {/* ── Danh sách ── */}
-        {(!isAdmin || activeTab === 'pending') && (
+        {/* ── Danh sách theo tab ── */}
+        {activeTab === 'pending' && (
           pending.length === 0
             ? <div className="empty-state"><div className="empty-icon">🎉</div>{isAdmin ? 'Không có đơn nào đang chờ!' : 'Không có đơn nào! Nghỉ ngơi chút 😊'}</div>
             : pending.map(o => <OrderCard key={o.id} order={o} {...cardProps} />)
         )}
-        {isAdmin && activeTab === 'done' && (
+        {activeTab === 'done' && (
           doneOrders.length === 0
             ? <div className="empty-state"><div className="empty-icon">📋</div>Chưa có đơn nào hoàn thành</div>
             : doneOrders.map(o => <DoneCard key={o.id} order={o} products={products} onImageClick={setLightbox} />)
-        )}
-
-        {/* ── Đã xong hôm nay (công nhân) ── */}
-        {!isAdmin && doneToday.length > 0 && (
-          <>
-            <button className="collapse-toggle" onClick={() => setShowDoneToday(s => !s)}>
-              {showDoneToday ? '▼' : '▶'} Đã xong hôm nay ({doneToday.length})
-            </button>
-            {showDoneToday && doneToday.map(o => <DoneCard key={o.id} order={o} products={products} onImageClick={setLightbox} />)}
-          </>
         )}
       </div>
 
