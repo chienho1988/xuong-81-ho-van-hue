@@ -13,6 +13,8 @@ import {
   type PushState,
 } from "@/lib/pushNotifications";
 import { soMayDuoc, soDaMay, kepSoCat } from "@/lib/cat";
+import { gomTheoMauMa, chiaNguocSoLuong, type NhomMauMa } from "@/lib/gopMauMa";
+import { xepNhomHan, type NhomHan } from "@/lib/nhacNho";
 import { ghiSoCat } from "@/lib/supabaseService";
 
 type ProductMap = Record<
@@ -269,7 +271,10 @@ function TienDoCat({ order }: { order: Order }) {
   const daMay = soDaMay(order);
   const daCat = order.cut_quantity ?? 0;
   const phanMay = Math.min(100, (daMay / tong) * 100);
-  const phanCho = Math.min(100 - phanMay, (Math.max(0, daCat - daMay) / tong) * 100);
+  const phanCho = Math.min(
+    100 - phanMay,
+    (Math.max(0, daCat - daMay) / tong) * 100,
+  );
 
   return (
     <div className="cut-progress">
@@ -287,6 +292,95 @@ function TienDoCat({ order }: { order: Order }) {
         )}
         {phanCho > 0 && (
           <i className="seg-cut" style={{ width: `${phanCho}%` }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── THẺ NHÓM MẪU MÃ (app thợ, chế độ gộp) ─────────────────────
+// Cắt và may cùng một mẫu một lượt thì nhanh hơn chạy lắt nhắt từng đơn.
+function NhomCard({
+  nhom,
+  products,
+  moRong,
+  onMoRong,
+  onXong,
+  onImageClick,
+}: {
+  nhom: NhomMauMa;
+  products: ProductMap;
+  moRong: boolean;
+  onMoRong: () => void;
+  onXong: (n: NhomMauMa) => void;
+  onImageClick: (img: string) => void;
+}) {
+  const product = products[nhom.product_id];
+  const dau = nhom.dons[0];
+  const gap = nhom.dons.some((d) => d.priority === "urgent");
+
+  return (
+    <div className={`order-card ${gap ? "urgent" : ""}`}>
+      <div className="order-row">
+        <ProductThumb
+          icon={product?.icon}
+          color={product?.color}
+          image={imageForOrder(product, nhom.color)}
+          onImageClick={onImageClick}
+        />
+        <div className="order-main">
+          <div className="order-title">
+            {product?.name || "Sản phẩm đã xoá"}
+            {gap && <span className="badge badge-urgent">🔥 GẤP</span>}
+          </div>
+          <div className="order-chips">
+            <span className="chip">Size {nhom.size}</span>
+            <span className="chip">{nhom.color}</span>
+            {nhom.soDon > 1 && (
+              <span className="chip chip-gop">gộp {nhom.soDon} đơn</span>
+            )}
+            {nhom.coDonTre && <span className="chip chip-due">🔴 Có đơn trễ</span>}
+          </div>
+          {nhom.hanGapNhat && (
+            <div className="order-note">⏰ Hạn gấp nhất: {nhom.hanGapNhat}</div>
+          )}
+        </div>
+        <div className="order-qty">
+          <b>{nhom.tongConLai}</b>
+          <span>cái</span>
+        </div>
+      </div>
+
+      {moRong && (
+        <div className="nhom-chi-tiet">
+          {nhom.dons.map((d) => (
+            <div key={d.id} className="nhom-dong">
+              <span>
+                {d.remaining_quantity} cái
+                {d.due_date ? ` · hạn ${d.due_date}` : ""}
+              </span>
+              <span>{d.priority === "urgent" ? "🔥" : ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="order-actions">
+        <button
+          className="btn btn-success"
+          style={{ flex: 2, minHeight: 46, fontSize: 15.5 }}
+          onClick={() => onXong(nhom)}
+        >
+          ✓ Báo xong
+        </button>
+        {nhom.soDon > 1 && (
+          <button
+            className="btn btn-outline"
+            style={{ flex: 1, minHeight: 46, fontSize: 14 }}
+            onClick={onMoRong}
+          >
+            {moRong ? "Thu gọn" : "Xem đơn"}
+          </button>
         )}
       </div>
     </div>
@@ -568,6 +662,13 @@ export default function DonHangPage() {
   const [cutQty, setCutQty] = useState(1);
   const [banCat, setBanCat] = useState(false);
   const [banCatSo, setBanCatSo] = useState<Record<string, number>>({});
+  // ── Hai kiểu xem của thợ: theo đơn hoặc gộp theo mẫu mã ──
+  // Mặc định là Gộp theo mẫu mã; sau đó nhớ lựa chọn trên máy của thợ.
+  const [kieuXem, setKieuXem] = useState<"don" | "gop">("gop");
+  const [nhomXong, setNhomXong] = useState<NhomMauMa | null>(null);
+  const [nhomQty, setNhomQty] = useState(1);
+  const [nhomMoRong, setNhomMoRong] = useState<string | null>(null);
+
   // Thợ ghi may nhiều hơn số đã cắt: nhắc một câu rồi vẫn cho ghi.
   const [canhBaoCat, setCanhBaoCat] = useState<{
     don: Order;
@@ -712,6 +813,16 @@ export default function DonHangPage() {
     getPushState().then(setPushState);
   }, []);
 
+  // Nhớ kiểu xem của thợ trên chính máy họ. Mặc định (chưa chọn lần nào) là gộp.
+  useEffect(() => {
+    try {
+      const luu = localStorage.getItem("xuong81_kieu_xem");
+      if (luu === "don" || luu === "gop") setKieuXem(luu);
+    } catch {
+      // Không đọc được localStorage thì giữ mặc định.
+    }
+  }, []);
+
   const handleEnablePush = async () => {
     setEnablingPush(true);
     const state = await enablePush(user?.id || "");
@@ -768,6 +879,26 @@ export default function DonHangPage() {
   const doneOrders = orders
     .filter((o) => o.status === "done")
     .sort((a, b) => (b.completed_at || "").localeCompare(a.completed_at || ""));
+  const homNay = new Date().toISOString().split("T")[0];
+  // Con số thợ hỏi đầu tiên mỗi sáng: tổng số CÁI, không phải số đơn.
+  const tongCanMay = pending.reduce((t, o) => t + o.remaining_quantity, 0);
+  const tongTre = pending
+    .filter((o) => xepNhomHan(o, homNay) === "tre")
+    .reduce((t, o) => t + o.remaining_quantity, 0);
+  const tongHomNay = pending
+    .filter((o) => xepNhomHan(o, homNay) === "hom-nay")
+    .reduce((t, o) => t + o.remaining_quantity, 0);
+  const nhomMauMa = gomTheoMauMa(pending, homNay);
+
+  const doiKieuXem = (k: "don" | "gop") => {
+    setKieuXem(k);
+    try {
+      localStorage.setItem("xuong81_kieu_xem", k);
+    } catch {
+      // Trình duyệt chặn localStorage thì vẫn dùng được, chỉ không nhớ lựa chọn.
+    }
+  };
+
   const urgentCount = pending.filter((o) => o.priority === "urgent").length;
   const unreadCount = orders.filter(
     (o) => o.status === "done" && !o.is_read_by_admin,
@@ -823,15 +954,18 @@ export default function DonHangPage() {
 
   // Đẩy hàng may xong sang kho Pancake — chạy ngầm, KHÔNG chặn thợ.
   // Đơn không gắn mẫu mã Pancake thì bỏ qua hẳn: hàng đó không có đường vào kho.
-  const guiNhapKhoPancake = (order: Order, logIds: (string | null)[]) => {
+  const guiNhapKhoPancake = (
+    variationId: string | null | undefined,
+    logIds: (string | null)[],
+  ) => {
     const ids = logIds.filter((x): x is string => !!x);
-    if (!order.pancake_variation_id || !ids.length) return;
+    if (!variationId || !ids.length) return;
     fetch("/api/pancake/nhap-kho", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         batch_id: `b_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
-        variation_id: order.pancake_variation_id,
+        variation_id: variationId,
         production_log_ids: ids,
       }),
     }).catch(() => {});
@@ -868,7 +1002,7 @@ export default function DonHangPage() {
         confirmOrder,
         confirmOrder.remaining_quantity,
       );
-      guiNhapKhoPancake(confirmOrder, [logId]);
+      guiNhapKhoPancake(confirmOrder.pancake_variation_id, [logId]);
       showToast("✅ Đã hoàn thành đơn");
       notifyAdminDone(
         confirmOrder,
@@ -886,7 +1020,7 @@ export default function DonHangPage() {
     if (ok) {
       // Ghi sản lượng đúng số vừa may trong lần này
       const logId = await logProduction(partialOrder, partialQty);
-      guiNhapKhoPancake(partialOrder, [logId]);
+      guiNhapKhoPancake(partialOrder.pancake_variation_id, [logId]);
       showToast(`✅ Đã may ${partialQty} cái, còn lại ${left}`);
       notifyAdminDone(
         partialOrder,
@@ -895,6 +1029,48 @@ export default function DonHangPage() {
       );
     }
     setPartialOrder(null);
+  };
+
+  // ── Báo xong ở chế độ gộp ────────────────────────────────────
+  // Chia ngược số lượng về từng đơn: VẪN ghi một production_log cho mỗi đơn (nếu
+  // không thì Lịch sử và Báo cáo mất dấu đơn), nhưng CHỈ một phiếu nhập kho cho cả
+  // lượt, vì cùng một mẫu mã và cùng một lần may.
+  const confirmNhomXong = async () => {
+    if (!nhomXong) return;
+    const nhom = nhomXong;
+    const so = nhomQty;
+    setNhomXong(null);
+
+    const phanChia = chiaNguocSoLuong(nhom.dons, so, homNay);
+    const logIds: (string | null)[] = [];
+
+    for (const phan of phanChia) {
+      const don = nhom.dons.find((d) => d.id === phan.order_id);
+      if (!don) continue;
+      const conLai = Math.max(0, don.remaining_quantity - phan.quantity);
+      const ok = await updateOrder(
+        don.id,
+        conLai === 0
+          ? {
+              status: "done",
+              remaining_quantity: 0,
+              completed_at: new Date().toISOString(),
+              completed_by: user?.name || "Công nhân",
+              is_read_by_admin: false,
+            }
+          : { remaining_quantity: conLai },
+      );
+      if (!ok) continue;
+      logIds.push(await logProduction(don, phan.quantity));
+      notifyAdminDone(
+        don,
+        phan.quantity,
+        conLai === 0 ? "Hoàn thành" : `Xong một phần — còn lại ${conLai} cái`,
+      );
+    }
+
+    guiNhapKhoPancake(nhom.pancake_variation_id, logIds);
+    showToast(`✅ Đã ghi ${so} cái đã may`);
   };
 
   // ── Ghi số đã cắt ────────────────────────────────────────────
@@ -1182,6 +1358,49 @@ export default function DonHangPage() {
             }}
           />
         )}
+        {/* ── Dải tổng + chọn kiểu xem (app thợ) ── */}
+        {activeTab === "pending" && !isAdmin && pending.length > 0 && (
+          <>
+            <div className="tong-can-may">
+              <div className="tong-label">TỔNG ĐANG CẦN MAY</div>
+              <div className="tong-so">
+                {tongCanMay}
+                <small>cái</small>
+              </div>
+              <div className="tong-phu">
+                <div>
+                  <b>{tongTre}</b>
+                  <span>cái trễ hạn</span>
+                </div>
+                <div>
+                  <b>{tongHomNay}</b>
+                  <span>cái hạn hôm nay</span>
+                </div>
+                <div>
+                  <b>{pending.length}</b>
+                  <span>đơn chờ may</span>
+                </div>
+              </div>
+            </div>
+            <div className="kieu-xem">
+              <button
+                className={kieuXem === "don" ? "on" : ""}
+                onClick={() => doiKieuXem("don")}
+                id="btn-xem-theo-don"
+              >
+                Theo đơn
+              </button>
+              <button
+                className={kieuXem === "gop" ? "on" : ""}
+                onClick={() => doiKieuXem("gop")}
+                id="btn-xem-gop"
+              >
+                Gộp theo mẫu mã
+              </button>
+            </div>
+          </>
+        )}
+
         {activeTab === "pending" &&
           !(isAdmin && banCat) &&
           (pending.length === 0 ? (
@@ -1191,6 +1410,42 @@ export default function DonHangPage() {
                 ? "Không có đơn nào đang chờ!"
                 : "Không có đơn nào! Nghỉ ngơi chút 😊"}
             </div>
+          ) : !isAdmin && kieuXem === "gop" ? (
+            nhomMauMa.map((n) => (
+              <NhomCard
+                key={n.khoa}
+                nhom={n}
+                products={products}
+                moRong={nhomMoRong === n.khoa}
+                onMoRong={() =>
+                  setNhomMoRong(nhomMoRong === n.khoa ? null : n.khoa)
+                }
+                onXong={(nh) => {
+                  setNhomXong(nh);
+                  setNhomQty(nh.tongConLai);
+                }}
+                onImageClick={(img) => setLightbox(img)}
+              />
+            ))
+          ) : !isAdmin ? (
+            (["tre", "hom-nay", "con-thoi-gian"] as NhomHan[]).map((nhom) => {
+              const ds = pending.filter((o) => xepNhomHan(o, homNay) === nhom);
+              if (!ds.length) return null;
+              const ten =
+                nhom === "tre"
+                  ? "🔴 TRỄ HẠN"
+                  : nhom === "hom-nay"
+                    ? "🟠 PHẢI XONG HÔM NAY"
+                    : "🟢 CÒN THỜI GIAN";
+              return (
+                <div key={nhom}>
+                  <div className="nhom-han">{ten}</div>
+                  {ds.map((o) => (
+                    <OrderCard key={o.id} order={o} {...cardProps} />
+                  ))}
+                </div>
+              );
+            })
           ) : (
             pending.map((o) => (
               <OrderCard key={o.id} order={o} {...cardProps} />
@@ -1351,6 +1606,77 @@ export default function DonHangPage() {
         </div>
       )}
 
+      {/* ── Báo xong ở chế độ gộp ── */}
+      {nhomXong && (
+        <div className="modal-overlay" onClick={() => setNhomXong(null)}>
+          <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-title">Đã may xong bao nhiêu cái?</div>
+            <p
+              style={{
+                fontSize: 15,
+                marginBottom: 16,
+                color: "var(--text-secondary)",
+              }}
+            >
+              {products[nhomXong.product_id]?.name} · {nhomXong.color} ·{" "}
+              {nhomXong.size} — gộp {nhomXong.soDon} đơn, tổng{" "}
+              {nhomXong.tongConLai} cái
+            </p>
+            <div
+              className="qty-stepper"
+              style={{ justifyContent: "center", marginBottom: 16 }}
+            >
+              <button
+                className="qty-btn"
+                onClick={() => setNhomQty(Math.max(1, nhomQty - 1))}
+              >
+                −
+              </button>
+              <span className="qty-value">{nhomQty}</span>
+              <button
+                className="qty-btn"
+                onClick={() =>
+                  setNhomQty(Math.min(nhomXong.tongConLai, nhomQty + 1))
+                }
+              >
+                +
+              </button>
+            </div>
+            <div className="cut-after">
+              Chia về từng đơn:
+              {chiaNguocSoLuong(nhomXong.dons, nhomQty, homNay).map((p) => {
+                const d = nhomXong.dons.find((x) => x.id === p.order_id);
+                const conLai = (d?.remaining_quantity ?? 0) - p.quantity;
+                return (
+                  <div key={p.order_id} className="nhom-dong">
+                    <span>
+                      {p.quantity} cái
+                      {d?.due_date ? ` · hạn ${d.due_date}` : ""}
+                    </span>
+                    <span>{conLai === 0 ? "đóng đơn" : `còn ${conLai}`}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="modal-actions">
+              <button
+                className="btn btn-outline"
+                onClick={() => setNhomXong(null)}
+              >
+                Huỷ
+              </button>
+              <button
+                className="btn btn-success"
+                id="btn-confirm-nhom"
+                onClick={confirmNhomXong}
+              >
+                Lưu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Bảng ghi số đã cắt (chỉ chủ xưởng) ── */}
       {cutOrder && (
         <div className="modal-overlay" onClick={() => setCutOrder(null)}>
@@ -1367,7 +1693,8 @@ export default function DonHangPage() {
               {cutOrder.size}
               <br />
               Đơn {cutOrder.quantity} cái — đã cắt {cutOrder.cut_quantity ?? 0},
-              còn {Math.max(0, cutOrder.quantity - (cutOrder.cut_quantity ?? 0))}{" "}
+              còn{" "}
+              {Math.max(0, cutOrder.quantity - (cutOrder.cut_quantity ?? 0))}{" "}
               cái chưa cắt
             </p>
             <div
@@ -1381,10 +1708,7 @@ export default function DonHangPage() {
                 −
               </button>
               <span className="qty-value">{cutQty}</span>
-              <button
-                className="qty-btn"
-                onClick={() => setCutQty(cutQty + 1)}
-              >
+              <button className="qty-btn" onClick={() => setCutQty(cutQty + 1)}>
                 +
               </button>
             </div>
@@ -1406,18 +1730,19 @@ export default function DonHangPage() {
                 }
               >
                 Cắt hết (
-                {Math.max(
-                  0,
-                  cutOrder.quantity - (cutOrder.cut_quantity ?? 0),
-                )}
-                )
+                {Math.max(0, cutOrder.quantity - (cutOrder.cut_quantity ?? 0))})
               </button>
             </div>
             <div className="cut-after">
-              Sau khi lưu: <b>đã cắt{" "}
-              {kepSoCat(cutOrder, (cutOrder.cut_quantity ?? 0) + cutQty)
-                .cutQuantity}
-              /{cutOrder.quantity}</b>
+              Sau khi lưu:{" "}
+              <b>
+                đã cắt{" "}
+                {
+                  kepSoCat(cutOrder, (cutOrder.cut_quantity ?? 0) + cutQty)
+                    .cutQuantity
+                }
+                /{cutOrder.quantity}
+              </b>
             </div>
             <div className="modal-actions">
               <button

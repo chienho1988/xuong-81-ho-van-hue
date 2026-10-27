@@ -1301,3 +1301,105 @@ body {
 .ban-cat-total span:last-child {
   color: #ef6c00;
 }
+
+/* ===========================================================
+   APP THỢ: DẢI TỔNG, HAI KIỂU XEM, THẺ NHÓM MẪU MÃ (mục 9 và 9a)
+   =========================================================== */
+
+/* Con số thợ hỏi đầu tiên mỗi sáng — chữ to nhất màn hình */
+.tong-can-may {
+  background: linear-gradient(135deg, #1976d2, #1565c0);
+  color: #fff;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.tong-label {
+  font-size: 11px;
+  opacity: 0.92;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.tong-so {
+  font-size: 46px;
+  font-weight: 800;
+  line-height: 1.05;
+}
+.tong-so small {
+  font-size: 16px;
+  font-weight: 600;
+  opacity: 0.9;
+  margin-left: 5px;
+}
+.tong-phu {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.tong-phu div {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  padding: 7px 8px;
+}
+.tong-phu b {
+  display: block;
+  font-size: 18px;
+  line-height: 1.2;
+}
+.tong-phu span {
+  font-size: 10px;
+  opacity: 0.93;
+}
+
+/* Cặp nút đổi kiểu xem */
+.kieu-xem {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.kieu-xem button {
+  flex: 1;
+  padding: 10px 4px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--border);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #757575;
+}
+.kieu-xem button.on {
+  background: #1976d2;
+  color: #fff;
+  border-color: #1976d2;
+}
+
+/* Tiêu đề nhóm theo hạn ở kiểu xem theo đơn */
+.nhom-han {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #546e7a;
+  margin: 12px 2px 6px;
+}
+
+.chip.chip-gop {
+  background: #e3f2fd;
+  color: #1565c0;
+  font-weight: 800;
+}
+
+/* Danh sách đơn bên trong một nhóm */
+.nhom-chi-tiet {
+  border-top: 1px dashed var(--border);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.nhom-dong {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 4px 0;
+  color: var(--text-secondary);
+}
