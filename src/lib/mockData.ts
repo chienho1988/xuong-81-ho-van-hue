@@ -8,7 +8,7 @@
 // Bản hiện tại dùng localStorage + window event 'ordersUpdated' để đồng bộ giữa các tab
 // trong cùng một trình duyệt.
 
-export type Role = 'admin' | 'worker';
+export type Role = "admin" | "worker";
 
 export interface User {
   id: string;
@@ -46,6 +46,10 @@ export interface Product {
   active: boolean;
   // Ảnh riêng theo màu (key = tên màu). Màu không có ảnh -> fallback main_image_url.
   color_images?: Record<string, string>;
+
+  // Thêm cho bản nối Pancake (mục 8b của thiết kế).
+  source?: "manual" | "pancake";
+  pancake_product_id?: string | null;
 }
 
 export interface Order {
@@ -55,15 +59,31 @@ export interface Order {
   color: string;
   quantity: number;
   remaining_quantity: number;
-  priority: 'normal' | 'urgent';
-  status: 'pending' | 'done';
+  priority: "normal" | "urgent";
+  status: "pending" | "done";
   due_date: string | null;
   note: string;
   created_by: string;
   completed_at: string | null;
-  completed_by: string | null;   // tên công nhân hoàn thành
-  is_read_by_admin: boolean;      // admin đã đọc thông báo chưa
+  completed_by: string | null; // tên công nhân hoàn thành
+  is_read_by_admin: boolean; // admin đã đọc thông báo chưa
   created_at: string;
+
+  // Các trường thêm cho bản nối Pancake + theo dõi số đã cắt.
+  // Tất cả để optional: app phải chạy được cả khi chưa chạy migration.
+  cut_quantity?: number; // số cái đã cắt
+  source?: "manual" | "pancake";
+  pancake_order_id?: string | null;
+  pancake_order_display_id?: string | null;
+  pancake_customer_name?: string | null;
+  pancake_customer_phone?: string | null;
+  pancake_tracking_code?: string | null;
+  pancake_carrier?: string | null;
+  pancake_order_status?: number | null;
+  pancake_variation_id?: string | null;
+  pancake_sku?: string | null;
+  image_url?: string | null;
+  surplus_flag?: boolean; // có thể đã may dư vì đơn Pancake bị sửa giảm
 }
 
 export interface ProductionLog {
@@ -83,133 +103,224 @@ export interface ProductionLog {
 // Tất cả ID và ngày tháng đều là giá trị cố định
 
 export const MOCK_USERS: User[] = [
-  { id: 'u1', name: 'Chủ xưởng', role: 'admin', pin: '1234' },
-  { id: 'u2', name: 'Ngọc (Công nhân)', role: 'worker', pin: '5678' },
+  { id: "u1", name: "Chủ xưởng", role: "admin", pin: "1234" },
+  { id: "u2", name: "Ngọc (Công nhân)", role: "worker", pin: "5678" },
 ];
 
 export const MOCK_CATEGORIES: Category[] = [
-  { id: 'c1', name: 'Áo', icon: '👔', color: '#4A90D9', sort_order: 1 },
-  { id: 'c2', name: 'Váy', icon: '👗', color: '#E91E8C', sort_order: 2 },
-  { id: 'c3', name: 'Set', icon: '🧥', color: '#7B1FA2', sort_order: 3 },
-  { id: 'c4', name: 'Quần', icon: '👖', color: '#795548', sort_order: 4 },
-  { id: 'c5', name: 'Khác', icon: '🧺', color: '#546E7A', sort_order: 5 },
+  { id: "c1", name: "Áo", icon: "👔", color: "#4A90D9", sort_order: 1 },
+  { id: "c2", name: "Váy", icon: "👗", color: "#E91E8C", sort_order: 2 },
+  { id: "c3", name: "Set", icon: "🧥", color: "#7B1FA2", sort_order: 3 },
+  { id: "c4", name: "Quần", icon: "👖", color: "#795548", sort_order: 4 },
+  { id: "c5", name: "Khác", icon: "🧺", color: "#546E7A", sort_order: 5 },
 ];
 
 // ── PRODUCTS ──────────────────────────────────────────────────────
 export const MOCK_PRODUCTS: Product[] = [
   {
-    id: 'p1',
-    category_id: 'c1',
-    name: 'Áo thun basic',
+    id: "p1",
+    category_id: "c1",
+    name: "Áo thun basic",
     main_image_url: null,
-    sizes: ['S', 'M', 'L'],
-    colors: ['Đen', 'Trắng'],
-    description: 'Áo thun cotton thoáng mát',
+    sizes: ["S", "M", "L"],
+    colors: ["Đen", "Trắng"],
+    description: "Áo thun cotton thoáng mát",
     variants: [
-      { id: 'v1', color: 'Đen', size: 'S', image_url: null, current_quantity: 0, note: '' },
-      { id: 'v2', color: 'Đen', size: 'M', image_url: null, current_quantity: 0, note: '' },
-      { id: 'v3', color: 'Đen', size: 'L', image_url: null, current_quantity: 0, note: '' },
-      { id: 'v4', color: 'Trắng', size: 'S', image_url: null, current_quantity: 0, note: '' },
-      { id: 'v5', color: 'Trắng', size: 'M', image_url: null, current_quantity: 0, note: '' },
-      { id: 'v6', color: 'Trắng', size: 'L', image_url: null, current_quantity: 0, note: '' },
+      {
+        id: "v1",
+        color: "Đen",
+        size: "S",
+        image_url: null,
+        current_quantity: 0,
+        note: "",
+      },
+      {
+        id: "v2",
+        color: "Đen",
+        size: "M",
+        image_url: null,
+        current_quantity: 0,
+        note: "",
+      },
+      {
+        id: "v3",
+        color: "Đen",
+        size: "L",
+        image_url: null,
+        current_quantity: 0,
+        note: "",
+      },
+      {
+        id: "v4",
+        color: "Trắng",
+        size: "S",
+        image_url: null,
+        current_quantity: 0,
+        note: "",
+      },
+      {
+        id: "v5",
+        color: "Trắng",
+        size: "M",
+        image_url: null,
+        current_quantity: 0,
+        note: "",
+      },
+      {
+        id: "v6",
+        color: "Trắng",
+        size: "L",
+        image_url: null,
+        current_quantity: 0,
+        note: "",
+      },
     ],
     active: true,
   },
   {
-    id: 'p2',
-    category_id: 'c1',
-    name: 'Áo sơ mi công sở',
+    id: "p2",
+    category_id: "c1",
+    name: "Áo sơ mi công sở",
     main_image_url: null,
-    sizes: ['M', 'L'],
-    colors: ['Trắng', 'Xanh'],
-    description: 'Vải lụa cao cấp',
+    sizes: ["M", "L"],
+    colors: ["Trắng", "Xanh"],
+    description: "Vải lụa cao cấp",
     variants: [
-      { id: 'v7', color: 'Trắng', size: 'M', image_url: null, current_quantity: 0, note: '' },
-      { id: 'v8', color: 'Trắng', size: 'L', image_url: null, current_quantity: 0, note: '' },
-      { id: 'v9', color: 'Xanh', size: 'M', image_url: null, current_quantity: 0, note: '' },
-      { id: 'v10', color: 'Xanh', size: 'L', image_url: null, current_quantity: 0, note: '' },
+      {
+        id: "v7",
+        color: "Trắng",
+        size: "M",
+        image_url: null,
+        current_quantity: 0,
+        note: "",
+      },
+      {
+        id: "v8",
+        color: "Trắng",
+        size: "L",
+        image_url: null,
+        current_quantity: 0,
+        note: "",
+      },
+      {
+        id: "v9",
+        color: "Xanh",
+        size: "M",
+        image_url: null,
+        current_quantity: 0,
+        note: "",
+      },
+      {
+        id: "v10",
+        color: "Xanh",
+        size: "L",
+        image_url: null,
+        current_quantity: 0,
+        note: "",
+      },
     ],
     active: true,
   },
   {
-    id: 'p3',
-    category_id: 'c2',
-    name: 'Váy chữ A',
+    id: "p3",
+    category_id: "c2",
+    name: "Váy chữ A",
     main_image_url: null,
-    sizes: ['Freesize', 'S', 'M'],
-    colors: ['Đen', 'Trắng', 'Đỏ'],
-    description: '',
+    sizes: ["Freesize", "S", "M"],
+    colors: ["Đen", "Trắng", "Đỏ"],
+    description: "",
     variants: [
-      { id: 'v11', color: 'Đen', size: 'Freesize', image_url: null, current_quantity: 0, note: '' },
-      { id: 'v12', color: 'Trắng', size: 'S', image_url: null, current_quantity: 0, note: '' },
+      {
+        id: "v11",
+        color: "Đen",
+        size: "Freesize",
+        image_url: null,
+        current_quantity: 0,
+        note: "",
+      },
+      {
+        id: "v12",
+        color: "Trắng",
+        size: "S",
+        image_url: null,
+        current_quantity: 0,
+        note: "",
+      },
     ],
     active: true,
   },
   {
-    id: 'p4',
-    category_id: 'c2',
-    name: 'Váy maxi dài',
+    id: "p4",
+    category_id: "c2",
+    name: "Váy maxi dài",
     main_image_url: null,
-    sizes: ['Freesize'],
-    colors: ['Đen', 'Be', 'Đỏ'],
-    description: 'Vải lụa mỏng',
+    sizes: ["Freesize"],
+    colors: ["Đen", "Be", "Đỏ"],
+    description: "Vải lụa mỏng",
     variants: [
-      { id: 'v13', color: 'Đen', size: 'Freesize', image_url: null, current_quantity: 0, note: '' },
+      {
+        id: "v13",
+        color: "Đen",
+        size: "Freesize",
+        image_url: null,
+        current_quantity: 0,
+        note: "",
+      },
     ],
     active: true,
   },
   {
-    id: 'p5',
-    category_id: 'c3',
-    name: 'Set áo + quần',
+    id: "p5",
+    category_id: "c3",
+    name: "Set áo + quần",
     main_image_url: null,
-    sizes: ['S', 'M', 'L', 'XL'],
-    colors: ['Đen', 'Trắng', 'Be'],
-    description: '',
+    sizes: ["S", "M", "L", "XL"],
+    colors: ["Đen", "Trắng", "Be"],
+    description: "",
     variants: [],
     active: true,
   },
   {
-    id: 'p6',
-    category_id: 'c3',
-    name: 'Set váy + áo khoác',
+    id: "p6",
+    category_id: "c3",
+    name: "Set váy + áo khoác",
     main_image_url: null,
-    sizes: ['Freesize', 'S', 'M'],
-    colors: ['Đen', 'Trắng', 'Hồng'],
-    description: '',
+    sizes: ["Freesize", "S", "M"],
+    colors: ["Đen", "Trắng", "Hồng"],
+    description: "",
     variants: [],
     active: true,
   },
   {
-    id: 'p7',
-    category_id: 'c4',
-    name: 'Quần tây',
+    id: "p7",
+    category_id: "c4",
+    name: "Quần tây",
     main_image_url: null,
-    sizes: ['S', 'M', 'L', 'XL'],
-    colors: ['Đen', 'Xám', 'Be'],
-    description: '',
+    sizes: ["S", "M", "L", "XL"],
+    colors: ["Đen", "Xám", "Be"],
+    description: "",
     variants: [],
     active: true,
   },
   {
-    id: 'p8',
-    category_id: 'c4',
-    name: 'Quần short',
+    id: "p8",
+    category_id: "c4",
+    name: "Quần short",
     main_image_url: null,
-    sizes: ['S', 'M', 'L', 'XL'],
-    colors: ['Đen', 'Trắng', 'Xanh'],
-    description: '',
+    sizes: ["S", "M", "L", "XL"],
+    colors: ["Đen", "Trắng", "Xanh"],
+    description: "",
     variants: [],
     active: true,
   },
   {
-    id: 'p9',
-    category_id: 'c5',
-    name: 'Khăn / Phụ kiện',
+    id: "p9",
+    category_id: "c5",
+    name: "Khăn / Phụ kiện",
     main_image_url: null,
-    sizes: ['Freesize'],
-    colors: ['Đen', 'Trắng', 'Be', 'Hồng'],
-    description: '',
+    sizes: ["Freesize"],
+    colors: ["Đen", "Trắng", "Be", "Hồng"],
+    description: "",
     variants: [],
     active: true,
   },
@@ -218,131 +329,138 @@ export const MOCK_PRODUCTS: Product[] = [
 // ── PRODUCTION LOGS MẪU ──────────────────────────────────────────
 export const MOCK_PRODUCTION_LOGS: ProductionLog[] = [
   {
-    id: 'l1',
-    product_id: 'p4',
-    worker_id: 'u2',
-    order_id: 'o4',
-    log_date: 'TODAY',
-    size: 'Freesize',
-    color: 'Đen',
+    id: "l1",
+    product_id: "p4",
+    worker_id: "u2",
+    order_id: "o4",
+    log_date: "TODAY",
+    size: "Freesize",
+    color: "Đen",
     quantity: 3,
-    note: '',
-    created_at: 'TODAY',
+    note: "",
+    created_at: "TODAY",
   },
   {
-    id: 'l2',
-    product_id: 'p1',
-    worker_id: 'u2',
+    id: "l2",
+    product_id: "p1",
+    worker_id: "u2",
     order_id: null,
-    log_date: 'TODAY',
-    size: 'L',
-    color: 'Trắng',
+    log_date: "TODAY",
+    size: "L",
+    color: "Trắng",
     quantity: 7,
-    note: 'May thêm hàng tồn',
-    created_at: 'TODAY',
+    note: "May thêm hàng tồn",
+    created_at: "TODAY",
   },
   {
-    id: 'l3',
-    product_id: 'p3',
-    worker_id: 'u2',
+    id: "l3",
+    product_id: "p3",
+    worker_id: "u2",
     order_id: null,
-    log_date: 'YESTERDAY',
-    size: 'M',
-    color: 'Đen',
+    log_date: "YESTERDAY",
+    size: "M",
+    color: "Đen",
     quantity: 5,
-    note: '',
-    created_at: 'YESTERDAY',
+    note: "",
+    created_at: "YESTERDAY",
   },
 ];
 
 // ── ORDERS MẪU ───────────────────────────────────────────────────
 export const MOCK_ORDERS: Order[] = [
   {
-    id: 'o1',
-    product_id: 'p1',
-    size: 'M',
-    color: 'Đen',
+    id: "o1",
+    product_id: "p1",
+    size: "M",
+    color: "Đen",
     quantity: 10,
     remaining_quantity: 10,
-    priority: 'urgent',
-    status: 'pending',
-    due_date: 'TODAY',
-    note: 'Giao khách gấp',
-    created_by: 'u1',
+    priority: "urgent",
+    status: "pending",
+    due_date: "TODAY",
+    note: "Giao khách gấp",
+    created_by: "u1",
     completed_at: null,
     completed_by: null,
     is_read_by_admin: true,
-    created_at: 'TODAY_07:30',
+    created_at: "TODAY_07:30",
   },
   {
-    id: 'o2',
-    product_id: 'p3',
-    size: 'S',
-    color: 'Trắng',
+    id: "o2",
+    product_id: "p3",
+    size: "S",
+    color: "Trắng",
     quantity: 5,
     remaining_quantity: 5,
-    priority: 'normal',
-    status: 'pending',
+    priority: "normal",
+    status: "pending",
     due_date: null,
-    note: '',
-    created_by: 'u1',
+    note: "",
+    created_by: "u1",
     completed_at: null,
     completed_by: null,
     is_read_by_admin: true,
-    created_at: 'TODAY_08:00',
+    created_at: "TODAY_08:00",
   },
   {
-    id: 'o3',
-    product_id: 'p2',
-    size: 'L',
-    color: 'Trắng',
+    id: "o3",
+    product_id: "p2",
+    size: "L",
+    color: "Trắng",
     quantity: 8,
     remaining_quantity: 8,
-    priority: 'urgent',
-    status: 'pending',
+    priority: "urgent",
+    status: "pending",
     due_date: null,
-    note: '',
-    created_by: 'u1',
+    note: "",
+    created_by: "u1",
     completed_at: null,
     completed_by: null,
     is_read_by_admin: true,
-    created_at: 'TODAY_09:15',
+    created_at: "TODAY_09:15",
   },
   {
-    id: 'o4',
-    product_id: 'p4',
-    size: 'Freesize',
-    color: 'Đen',
+    id: "o4",
+    product_id: "p4",
+    size: "Freesize",
+    color: "Đen",
     quantity: 3,
     remaining_quantity: 0,
-    priority: 'normal',
-    status: 'done',
+    priority: "normal",
+    status: "done",
     due_date: null,
-    note: '',
-    created_by: 'u1',
-    completed_at: 'TODAY_11:20',
-    completed_by: 'Ngọc (Công nhân)',
+    note: "",
+    created_by: "u1",
+    completed_at: "TODAY_11:20",
+    completed_by: "Ngọc (Công nhân)",
     is_read_by_admin: true,
-    created_at: 'TODAY_07:00',
+    created_at: "TODAY_07:00",
   },
 ];
 
 // ── HÀM TIỆN ÍCH: thay thế placeholder TODAY/YESTERDAY ───────────
 function replaceDatePlaceholders<T>(data: T): T {
-  if (typeof data === 'string') {
-    if (data === 'TODAY') return new Date().toISOString().split('T')[0] as unknown as T;
-    if (data === 'YESTERDAY') return new Date(Date.now() - 86400000).toISOString().split('T')[0] as unknown as T;
-    if (data.startsWith('TODAY_')) {
+  if (typeof data === "string") {
+    if (data === "TODAY")
+      return new Date().toISOString().split("T")[0] as unknown as T;
+    if (data === "YESTERDAY")
+      return new Date(Date.now() - 86400000)
+        .toISOString()
+        .split("T")[0] as unknown as T;
+    if (data.startsWith("TODAY_")) {
       const time = data.slice(6);
-      return `${new Date().toISOString().split('T')[0]}T${time}:00` as unknown as T;
+      return `${new Date().toISOString().split("T")[0]}T${time}:00` as unknown as T;
     }
     return data;
   }
-  if (Array.isArray(data)) return data.map(item => replaceDatePlaceholders(item)) as unknown as T;
-  if (data !== null && typeof data === 'object') {
+  if (Array.isArray(data))
+    return data.map((item) => replaceDatePlaceholders(item)) as unknown as T;
+  if (data !== null && typeof data === "object") {
     const result: Record<string, unknown> = {};
     for (const key of Object.keys(data as Record<string, unknown>)) {
-      result[key] = replaceDatePlaceholders((data as Record<string, unknown>)[key]);
+      result[key] = replaceDatePlaceholders(
+        (data as Record<string, unknown>)[key],
+      );
     }
     return result as T;
   }
@@ -351,7 +469,7 @@ function replaceDatePlaceholders<T>(data: T): T {
 
 // ── LOCALSTORAGE HELPERS ─────────────────────────────────────────
 export function loadFromStorage<T>(key: string, fallback: T): T {
-  if (typeof window === 'undefined') return fallback;
+  if (typeof window === "undefined") return fallback;
   try {
     const saved = localStorage.getItem(key);
     if (!saved) return fallback;
@@ -364,55 +482,57 @@ export function loadFromStorage<T>(key: string, fallback: T): T {
 }
 
 function saveToStorage(key: string, data: unknown) {
-  if (typeof window !== 'undefined') {
+  if (typeof window !== "undefined") {
     localStorage.setItem(key, JSON.stringify(data));
   }
 }
 
 function dispatchEvent(name: string) {
-  if (typeof window !== 'undefined') {
-    try { window.dispatchEvent(new Event(name)); } catch (e) {}
+  if (typeof window !== "undefined") {
+    try {
+      window.dispatchEvent(new Event(name));
+    } catch (e) {}
   }
 }
 
 // ── PRODUCTS ──────────────────────────────────────────────────────
 export function loadProducts(): Product[] {
-  const saved = loadFromStorage<Product[]>('xuong81_products', []);
+  const saved = loadFromStorage<Product[]>("xuong81_products", []);
   if (saved.length > 0) {
     MOCK_PRODUCTS.length = 0;
     MOCK_PRODUCTS.push(...saved);
     return saved;
   }
   const seeded = replaceDatePlaceholders(MOCK_PRODUCTS);
-  saveToStorage('xuong81_products', seeded);
+  saveToStorage("xuong81_products", seeded);
   return seeded;
 }
 
 export function saveProductsToStorage(products: Product[]) {
-  saveToStorage('xuong81_products', products);
+  saveToStorage("xuong81_products", products);
   MOCK_PRODUCTS.length = 0;
   MOCK_PRODUCTS.push(...products);
-  dispatchEvent('productsUpdated');
+  dispatchEvent("productsUpdated");
 }
 
 // ── PRODUCTION LOGS ───────────────────────────────────────────────
 export function loadProductionLogs(): ProductionLog[] {
-  const saved = loadFromStorage<ProductionLog[]>('xuong81_production_logs', []);
+  const saved = loadFromStorage<ProductionLog[]>("xuong81_production_logs", []);
   if (saved.length > 0) {
     MOCK_PRODUCTION_LOGS.length = 0;
     MOCK_PRODUCTION_LOGS.push(...saved);
     return saved;
   }
   const seeded = replaceDatePlaceholders(MOCK_PRODUCTION_LOGS);
-  saveToStorage('xuong81_production_logs', seeded);
+  saveToStorage("xuong81_production_logs", seeded);
   return seeded;
 }
 
 export function saveProductionLogsToStorage(logs: ProductionLog[]) {
-  saveToStorage('xuong81_production_logs', logs);
+  saveToStorage("xuong81_production_logs", logs);
   MOCK_PRODUCTION_LOGS.length = 0;
   MOCK_PRODUCTION_LOGS.push(...logs);
-  dispatchEvent('productionLogsUpdated');
+  dispatchEvent("productionLogsUpdated");
 }
 
 export function addProductionLog(log: ProductionLog) {
@@ -431,28 +551,28 @@ export function addMultipleProductionLogs(logs: ProductionLog[]) {
 
 // ── ORDERS ────────────────────────────────────────────────────────
 export function loadOrders(): Order[] {
-  const saved = loadFromStorage<Order[]>('xuong81_orders', []);
+  const saved = loadFromStorage<Order[]>("xuong81_orders", []);
   if (saved.length > 0) return saved;
   // Lần đầu: seed dữ liệu mẫu
   const seeded = replaceDatePlaceholders(MOCK_ORDERS);
-  saveToStorage('xuong81_orders', seeded);
+  saveToStorage("xuong81_orders", seeded);
   return seeded;
 }
 
 export function saveOrdersToStorage(orders: Order[]) {
-  saveToStorage('xuong81_orders', orders);
-  dispatchEvent('ordersUpdated');
+  saveToStorage("xuong81_orders", orders);
+  dispatchEvent("ordersUpdated");
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────
 export function getProductById(id: string): Product | undefined {
-  return MOCK_PRODUCTS.find(p => p.id === id);
+  return MOCK_PRODUCTS.find((p) => p.id === id);
 }
 
 export function getCategoryById(id: string): Category | undefined {
-  return MOCK_CATEGORIES.find(c => c.id === id);
+  return MOCK_CATEGORIES.find((c) => c.id === id);
 }
 
 export function getProductsByCategory(categoryId: string): Product[] {
-  return MOCK_PRODUCTS.filter(p => p.category_id === categoryId && p.active);
+  return MOCK_PRODUCTS.filter((p) => p.category_id === categoryId && p.active);
 }
