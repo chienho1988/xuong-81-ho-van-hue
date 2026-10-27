@@ -56,7 +56,18 @@ jobs:
               curl -sS -X POST "$APP_URL/api/cron/nhac-nho?buoi=chieu" \
                 -H "x-xuong81-secret: $CRON_SECRET" ;;
             dong-bo)
-              curl -sS -X POST "$APP_URL/api/cron/dong-bo-mau-ma" \
+              # Shop co ~4.440 mau ma (89 trang). Do duoc 6 trang ~2,6 giay, van
+              # chia nhieu luot cho chac duoi gioi han 60 giay cua ham Vercel.
+              TRANG=1
+              for _ in $(seq 1 20); do
+                KQ=$(curl -sS -X POST "$APP_URL/api/cron/dong-bo-mau-ma?tu_trang=$TRANG&so_trang=6" \
+                  -H "x-xuong81-secret: $CRON_SECRET")
+                echo "$KQ"
+                TRANG=$(echo "$KQ" | sed -n 's/.*"trangKeTiep":\([0-9][0-9]*\).*/\1/p')
+                [ -z "$TRANG" ] && break
+              done
+              # Doi chieu don 24h qua: webhook khong phai duong duy nhat.
+              curl -sS -X POST "$APP_URL/api/cron/doi-chieu-don" \
                 -H "x-xuong81-secret: $CRON_SECRET" ;;
             keep-alive)
               curl -sS -X POST "$APP_URL/api/cron/keep-alive" \
