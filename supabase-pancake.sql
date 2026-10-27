@@ -33,7 +33,7 @@ CREATE INDEX IF NOT EXISTS idx_pancake_variants_tim
 -- 2. Payload thô Pancake gửi sang (chống xử lý trùng + soi khi sự cố)
 -- ---------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS pancake_webhook_events (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id           TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   order_id     TEXT,
   updated_at   TEXT,
   payload      JSONB,
@@ -55,7 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_pancake_events_chua_xu_ly
 --    mỗi lượt thợ báo xong sinh đúng một batch_id.
 -- ---------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS pancake_stock_ins (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id                  TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   batch_id            TEXT NOT NULL UNIQUE,
   variation_id        TEXT,
   quantity            INTEGER NOT NULL,
@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS pancake_stock_in_logs (
 -- 4. Sổ cắt — tách hẳn khỏi production_logs để báo cáo không cộng đôi
 -- ---------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS cutting_logs (
-  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   order_id   TEXT,
   product_id TEXT,
   quantity   INTEGER NOT NULL,
@@ -165,7 +165,7 @@ BEGIN
       WHERE schemaname = 'public' AND tablename = t AND policyname = 'Allow all ' || t
     ) THEN
       EXECUTE format(
-        'CREATE POLICY %L ON %I FOR ALL USING (true) WITH CHECK (true)',
+        'CREATE POLICY %I ON %I FOR ALL USING (true) WITH CHECK (true)',
         'Allow all ' || t, t
       );
     END IF;
