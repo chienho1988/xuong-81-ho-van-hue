@@ -78,3 +78,39 @@ Người dùng trao đổi bằng **tiếng Việt**; UI toàn tiếng Việt, m
 5. Commit (message tiếng Anh rõ ràng) → `git push origin main:master`.
 6. Xác nhận Vercel deploy Ready + kiểm tra bundle production chứa thay đổi.
 7. Nếu có migration: nhắc user chạy SQL trên Supabase, và đảm bảo code không vỡ khi chưa migrate.
+
+---
+
+## Nối với Pancake POS (từ 27/10/2026)
+
+Đơn thiếu hàng trên Pancake tự thành lệnh may; thợ bấm Xong thì tồn kho Pancake tự
+tăng. Thiết kế đầy đủ: `docs/superpowers/specs/2026-10-27-ket-noi-pancake-design.md`.
+**Việc chủ xưởng phải tự làm (webhook, biến môi trường): `docs/ket-noi-pancake-huong-dan.md`.**
+
+**Hằng số đã xác minh bằng API thật** — đừng tra lại: shop `970675`; nhà cung cấp
+"Xưởng nhà làm" id `1842006837` (duy nhất); kho "Khohang 81" id
+`c4f2c739-a5a9-4f36-911f-26323b6a21cd` (duy nhất); 4.440 mẫu mã / 89 trang.
+
+**Route mới**
+
+| Route                       | Việc                                              |
+| --------------------------- | ------------------------------------------------- |
+| `/api/pancake/webhook`      | Nhận đơn từ Pancake, ghi rồi trả 200 NGAY          |
+| `/api/pancake/xu-ly`        | Biến event thành lệnh may                          |
+| `/api/pancake/nhap-kho`     | Xếp và xả hàng đợi nhập kho                        |
+| `/api/cron/nhac-nho`        | Nhắc 7h30 / 14h                                    |
+| `/api/cron/dong-bo-mau-ma`  | Chép danh mục mẫu mã về (chia 6 trang/lượt)        |
+| `/api/cron/doi-chieu-don`   | Đối chiếu đơn 24h qua, phòng khi webhook bị tắt    |
+| `/api/cron/keep-alive`      | Chống Supabase ngủ sau 7 ngày                      |
+
+**Quy tắc sống còn**
+
+- Số cần may = `max(0, −tồn_Pancake)` − (lệnh may chờ + phiếu nhập kho chưa xong).
+  Thiếu vế thứ hai là app đẻ lệnh may trùng. Code ở `src/lib/pancake/math.ts`.
+- Chống nhập kho hai lần bằng khoá duy nhất `batch_id` — mỗi lượt báo xong một mã.
+- `orders.created_by` là KHOÁ NGOẠI tới `users(id)`, không phải tên tự do.
+- Trong `src/lib/`, import nhau bằng đường dẫn tương đối có đuôi `.ts` (không dùng
+  alias `@/`) để bộ chạy test của Node nạp được; `src/app/` thì dùng `@/` bình thường.
+- tsconfig target `es5`: không duyệt `Map` bằng `for...of`, không dùng cờ regex `u`.
+
+**Chạy test:** `npm test` (bộ chạy test có sẵn của Node, không cài thêm gói nào).
