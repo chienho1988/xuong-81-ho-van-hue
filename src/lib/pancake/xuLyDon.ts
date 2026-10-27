@@ -2,7 +2,7 @@
 //
 // Chỉ chạy ở server: dùng supabaseServer và PANCAKE_API_KEY.
 
-import { supabaseServer } from "@/lib/supabaseServer";
+import { supabaseServer } from "../supabaseServer.ts";
 import {
   layMauMa,
   layTonKhoTuoi,

@@ -1,113 +1,250 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/AuthContext';
-import BottomNav from '@/components/BottomNav';
-import { Order } from '@/lib/mockData';
-import { supabase } from '@/lib/supabaseClient';
-import { useAutoRefresh } from '@/lib/useAutoRefresh';
-import { getPushState, enablePush, type PushState } from '@/lib/pushNotifications';
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/AuthContext";
+import BottomNav from "@/components/BottomNav";
+import { Order } from "@/lib/mockData";
+import { supabase } from "@/lib/supabaseClient";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
+import {
+  getPushState,
+  enablePush,
+  type PushState,
+} from "@/lib/pushNotifications";
 
-type ProductMap = Record<string, { name: string; icon: string; color: string; image: string | null; colorImages: Record<string, string> }>;
+type ProductMap = Record<
+  string,
+  {
+    name: string;
+    icon: string;
+    color: string;
+    image: string | null;
+    colorImages: Record<string, string>;
+  }
+>;
 
 // Ảnh cho 1 đơn cụ thể: ưu tiên ảnh theo màu, fallback ảnh chung
-function imageForOrder(product: ProductMap[string] | undefined, orderColor: string): string | null {
+function imageForOrder(
+  product: ProductMap[string] | undefined,
+  orderColor: string,
+): string | null {
   if (!product) return null;
   return product.colorImages[orderColor] || product.image;
 }
 
 // Hiển thị giờ theo múi giờ máy (không dùng slice ISO vì đó là giờ UTC)
 function formatWhen(iso: string | null) {
-  if (!iso) return '';
+  if (!iso) return "";
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
+  if (isNaN(d.getTime())) return "";
   const today = new Date();
   const sameDay = d.toDateString() === today.toDateString();
-  const time = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  const time = d.toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   return sameDay ? time : `${d.getDate()}/${d.getMonth() + 1} ${time}`;
 }
 
-function ProductThumb({ icon, color, image, onImageClick }: {
-  icon?: string; color?: string; image?: string | null;
+function ProductThumb({
+  icon,
+  color,
+  image,
+  onImageClick,
+}: {
+  icon?: string;
+  color?: string;
+  image?: string | null;
   onImageClick?: (img: string) => void;
 }) {
   return (
-    <div className="order-thumb"
-      style={{ background: (color ?? '#4A90D9') + '1A', cursor: image && onImageClick ? 'zoom-in' : 'default' }}
-      onClick={() => { if (image && onImageClick) onImageClick(image); }}>
-      {image
-        ? <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        : (icon || '👔')}
+    <div
+      className="order-thumb"
+      style={{
+        background: (color ?? "#4A90D9") + "1A",
+        cursor: image && onImageClick ? "zoom-in" : "default",
+      }}
+      onClick={() => {
+        if (image && onImageClick) onImageClick(image);
+      }}
+    >
+      {image ? (
+        <img
+          src={image}
+          alt=""
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
+      ) : (
+        icon || "👔"
+      )}
     </div>
   );
 }
 
 // Lightbox xem ảnh to — bấm nền hoặc ✕ để đóng
-function ImageLightbox({ image, onClose }: { image: string; onClose: () => void }) {
+function ImageLightbox({
+  image,
+  onClose,
+}: {
+  image: string;
+  onClose: () => void;
+}) {
   return (
-    <div className="modal-overlay" onClick={onClose}
-      style={{ alignItems: 'center', background: 'rgba(0,0,0,.78)', zIndex: 400, padding: 16 }}>
-      <button onClick={onClose} aria-label="Đóng"
+    <div
+      className="modal-overlay"
+      onClick={onClose}
+      style={{
+        alignItems: "center",
+        background: "rgba(0,0,0,.78)",
+        zIndex: 400,
+        padding: 16,
+      }}
+    >
+      <button
+        onClick={onClose}
+        aria-label="Đóng"
         style={{
-          position: 'absolute', top: 14, right: 14, width: 40, height: 40, borderRadius: 20,
-          border: 'none', background: 'rgba(255,255,255,.18)', color: '#fff',
-          fontSize: 18, fontWeight: 700, cursor: 'pointer',
-        }}>✕</button>
-      <img src={image} alt="" onClick={e => e.stopPropagation()}
-        style={{ maxWidth: '92vw', maxHeight: '80vh', borderRadius: 12, objectFit: 'contain', boxShadow: '0 8px 40px rgba(0,0,0,.5)' }} />
+          position: "absolute",
+          top: 14,
+          right: 14,
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          border: "none",
+          background: "rgba(255,255,255,.18)",
+          color: "#fff",
+          fontSize: 18,
+          fontWeight: 700,
+          cursor: "pointer",
+        }}
+      >
+        ✕
+      </button>
+      <img
+        src={image}
+        alt=""
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: "92vw",
+          maxHeight: "80vh",
+          borderRadius: 12,
+          objectFit: "contain",
+          boxShadow: "0 8px 40px rgba(0,0,0,.5)",
+        }}
+      />
     </div>
   );
 }
 
-function BellButton({ onClick, count }: { onClick: () => void; count: number }) {
+function BellButton({
+  onClick,
+  count,
+}: {
+  onClick: () => void;
+  count: number;
+}) {
   return (
-    <button id="btn-bell" className="bell-btn" onClick={onClick} title="Thông báo">
+    <button
+      id="btn-bell"
+      className="bell-btn"
+      onClick={onClick}
+      title="Thông báo"
+    >
       🔔
-      {count > 0 && <span className="bell-badge">{count > 99 ? '99+' : count}</span>}
+      {count > 0 && (
+        <span className="bell-badge">{count > 99 ? "99+" : count}</span>
+      )}
     </button>
   );
 }
 
-function NotifPanel({ orders, products, onClose, onReadAll }: {
-  orders: Order[]; products: ProductMap;
-  onClose: () => void; onReadAll: () => void;
+function NotifPanel({
+  orders,
+  products,
+  onClose,
+  onReadAll,
+}: {
+  orders: Order[];
+  products: ProductMap;
+  onClose: () => void;
+  onReadAll: () => void;
 }) {
   const doneOrders = orders
-    .filter(o => o.status === 'done' && o.completed_at)
-    .sort((a, b) => (b.completed_at || '').localeCompare(a.completed_at || ''))
+    .filter((o) => o.status === "done" && o.completed_at)
+    .sort((a, b) => (b.completed_at || "").localeCompare(a.completed_at || ""))
     .slice(0, 30);
-  const hasUnread = doneOrders.some(o => !o.is_read_by_admin);
+  const hasUnread = doneOrders.some((o) => !o.is_read_by_admin);
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ alignItems: 'flex-start', paddingTop: 56 }}>
-      <div className="notif-panel" onClick={e => e.stopPropagation()}>
+    <div
+      className="modal-overlay"
+      onClick={onClose}
+      style={{ alignItems: "flex-start", paddingTop: 56 }}
+    >
+      <div className="notif-panel" onClick={(e) => e.stopPropagation()}>
         <div className="notif-head">
           <span style={{ fontWeight: 700, fontSize: 16 }}>🔔 Thông báo</span>
           {hasUnread && (
-            <button className="notif-readall" onClick={onReadAll} id="btn-read-all">Đánh dấu đã đọc</button>
+            <button
+              className="notif-readall"
+              onClick={onReadAll}
+              id="btn-read-all"
+            >
+              Đánh dấu đã đọc
+            </button>
           )}
         </div>
-        <div style={{ maxHeight: '60dvh', overflowY: 'auto' }}>
+        <div style={{ maxHeight: "60dvh", overflowY: "auto" }}>
           {doneOrders.length === 0 ? (
-            <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14 }}>
+            <div
+              style={{
+                padding: 32,
+                textAlign: "center",
+                color: "var(--text-secondary)",
+                fontSize: 14,
+              }}
+            >
               <div style={{ fontSize: 34, marginBottom: 8 }}>🔕</div>
-              Chưa có thông báo.<br />Khi công nhân hoàn thành đơn, thông báo sẽ hiện ở đây.
+              Chưa có thông báo.
+              <br />
+              Khi công nhân hoàn thành đơn, thông báo sẽ hiện ở đây.
             </div>
-          ) : doneOrders.map(o => {
-            const prod = products[o.product_id];
-            const isUnread = !o.is_read_by_admin;
-            return (
-              <div key={o.id} className={`notif-row ${isUnread ? 'unread' : ''}`}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13.5, lineHeight: 1.5, fontWeight: isUnread ? 600 : 400 }}>
-                    <b>{o.completed_by || 'Công nhân'}</b> đã xong {o.quantity} cái {prod?.name || 'sản phẩm'} · {o.color} · {o.size}
+          ) : (
+            doneOrders.map((o) => {
+              const prod = products[o.product_id];
+              const isUnread = !o.is_read_by_admin;
+              return (
+                <div
+                  key={o.id}
+                  className={`notif-row ${isUnread ? "unread" : ""}`}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: 13.5,
+                        lineHeight: 1.5,
+                        fontWeight: isUnread ? 600 : 400,
+                      }}
+                    >
+                      <b>{o.completed_by || "Công nhân"}</b> đã xong{" "}
+                      {o.quantity} cái {prod?.name || "sản phẩm"} · {o.color} ·{" "}
+                      {o.size}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        color: "var(--text-secondary)",
+                        marginTop: 2,
+                      }}
+                    >
+                      {formatWhen(o.completed_at)}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 2 }}>{formatWhen(o.completed_at)}</div>
+                  {isUnread && <span className="notif-dot" />}
                 </div>
-                {isUnread && <span className="notif-dot" />}
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </div>
     </div>
@@ -115,24 +252,46 @@ function NotifPanel({ orders, products, onClose, onReadAll }: {
 }
 
 // ─── THẺ ĐƠN HÀNG (dùng chung admin + công nhân) ───────────────
-function OrderCard({ order, products, isAdmin, onDone, onPartial, onDelete, onPin, onToggleUrgent, onEdit, onImageClick }: {
-  order: Order; products: ProductMap; isAdmin: boolean;
-  onDone: (o: Order) => void; onPartial: (o: Order) => void;
-  onDelete: (o: Order) => void; onPin: (o: Order) => void; onToggleUrgent: (o: Order) => void;
-  onEdit: (o: Order) => void; onImageClick: (img: string) => void;
+function OrderCard({
+  order,
+  products,
+  isAdmin,
+  onDone,
+  onPartial,
+  onDelete,
+  onPin,
+  onToggleUrgent,
+  onEdit,
+  onImageClick,
+}: {
+  order: Order;
+  products: ProductMap;
+  isAdmin: boolean;
+  onDone: (o: Order) => void;
+  onPartial: (o: Order) => void;
+  onDelete: (o: Order) => void;
+  onPin: (o: Order) => void;
+  onToggleUrgent: (o: Order) => void;
+  onEdit: (o: Order) => void;
+  onImageClick: (img: string) => void;
 }) {
   const product = products[order.product_id];
-  const isUrgent = order.priority === 'urgent';
-  const today = new Date().toISOString().split('T')[0];
+  const isUrgent = order.priority === "urgent";
+  const today = new Date().toISOString().split("T")[0];
   const dueToday = order.due_date === today;
 
   return (
-    <div className={`order-card ${isUrgent ? 'urgent' : ''}`}>
+    <div className={`order-card ${isUrgent ? "urgent" : ""}`}>
       <div className="order-row">
-        <ProductThumb icon={product?.icon} color={product?.color} image={imageForOrder(product, order.color)} onImageClick={onImageClick} />
+        <ProductThumb
+          icon={product?.icon}
+          color={product?.color}
+          image={imageForOrder(product, order.color)}
+          onImageClick={onImageClick}
+        />
         <div className="order-main">
           <div className="order-title">
-            {product?.name || 'Sản phẩm đã xoá'}
+            {product?.name || "Sản phẩm đã xoá"}
             {isUrgent && <span className="badge badge-urgent">🔥 GẤP</span>}
           </div>
           <div className="order-chips">
@@ -151,31 +310,57 @@ function OrderCard({ order, products, isAdmin, onDone, onPartial, onDelete, onPi
       {isAdmin ? (
         <div className="order-actions">
           <span className="order-time">Tạo {formatWhen(order.created_at)}</span>
-          <button className="act-btn" id={`btn-edit-${order.id}`} onClick={() => onEdit(order)}>
+          <button
+            className="act-btn"
+            id={`btn-edit-${order.id}`}
+            onClick={() => onEdit(order)}
+          >
             ✏️ Sửa
           </button>
-          <button className={`act-btn ${isUrgent ? 'on' : ''}`} id={`btn-urgent-${order.id}`}
-            onClick={() => onToggleUrgent(order)}>
-            🔥 {isUrgent ? 'Bỏ gấp' : 'Gấp'}
+          <button
+            className={`act-btn ${isUrgent ? "on" : ""}`}
+            id={`btn-urgent-${order.id}`}
+            onClick={() => onToggleUrgent(order)}
+          >
+            🔥 {isUrgent ? "Bỏ gấp" : "Gấp"}
           </button>
-          <button className="act-btn" id={`btn-pin-${order.id}`} onClick={() => onPin(order)}>
+          <button
+            className="act-btn"
+            id={`btn-pin-${order.id}`}
+            onClick={() => onPin(order)}
+          >
             📌 Lên đầu
           </button>
-          <button className="act-btn danger" id={`btn-admin-delete-${order.id}`} onClick={() => onDelete(order)}>
+          <button
+            className="act-btn danger"
+            id={`btn-admin-delete-${order.id}`}
+            onClick={() => onDelete(order)}
+          >
             🗑
           </button>
         </div>
       ) : (
         <div className="order-actions">
-          <button className="btn btn-success" id={`btn-done-${order.id}`}
+          <button
+            className="btn btn-success"
+            id={`btn-done-${order.id}`}
             style={{ flex: 2, minHeight: 46, fontSize: 15.5 }}
-            onClick={() => onDone(order)}>
+            onClick={() => onDone(order)}
+          >
             ✓ Xong hết
           </button>
           {order.remaining_quantity > 1 && (
-            <button className="btn btn-outline" id={`btn-partial-${order.id}`}
-              style={{ flex: 1, minHeight: 46, fontSize: 14, padding: '8px 10px' }}
-              onClick={() => onPartial(order)}>
+            <button
+              className="btn btn-outline"
+              id={`btn-partial-${order.id}`}
+              style={{
+                flex: 1,
+                minHeight: 46,
+                fontSize: 14,
+                padding: "8px 10px",
+              }}
+              onClick={() => onPartial(order)}
+            >
               Một phần
             </button>
           )}
@@ -185,21 +370,43 @@ function OrderCard({ order, products, isAdmin, onDone, onPartial, onDelete, onPi
   );
 }
 
-function DoneCard({ order, products, onImageClick }: { order: Order; products: ProductMap; onImageClick: (img: string) => void }) {
+function DoneCard({
+  order,
+  products,
+  onImageClick,
+}: {
+  order: Order;
+  products: ProductMap;
+  onImageClick: (img: string) => void;
+}) {
   const product = products[order.product_id];
   return (
     <div className="order-card done">
       <div className="order-row">
-        <ProductThumb icon={product?.icon} color={product?.color} image={imageForOrder(product, order.color)} onImageClick={onImageClick} />
+        <ProductThumb
+          icon={product?.icon}
+          color={product?.color}
+          image={imageForOrder(product, order.color)}
+          onImageClick={onImageClick}
+        />
         <div className="order-main">
-          <div className="order-title" style={{ fontSize: 14.5 }}>{product?.name || 'Sản phẩm đã xoá'}</div>
+          <div className="order-title" style={{ fontSize: 14.5 }}>
+            {product?.name || "Sản phẩm đã xoá"}
+          </div>
           <div className="order-chips">
             <span className="chip">Size {order.size}</span>
             <span className="chip">{order.color}</span>
             <span className="chip">{order.quantity} cái</span>
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-            ✅ {order.completed_by || 'Đã xong'} · {formatWhen(order.completed_at)}
+          <div
+            style={{
+              fontSize: 12,
+              color: "var(--text-secondary)",
+              marginTop: 4,
+            }}
+          >
+            ✅ {order.completed_by || "Đã xong"} ·{" "}
+            {formatWhen(order.completed_at)}
           </div>
         </div>
       </div>
@@ -210,7 +417,7 @@ function DoneCard({ order, products, onImageClick }: { order: Order; products: P
 export default function DonHangPage() {
   const { user, logout } = useAuth();
   const router = useRouter();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === "admin";
 
   const [ordersLoaded, setOrdersLoaded] = useState(false);
   const [productsLoaded, setProductsLoaded] = useState(false);
@@ -218,17 +425,17 @@ export default function DonHangPage() {
   const mounted = ordersLoaded && productsLoaded;
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<ProductMap>({});
-  const [activeTab, setActiveTab] = useState<'pending' | 'done'>('pending');
+  const [activeTab, setActiveTab] = useState<"pending" | "done">("pending");
   const [confirmOrder, setConfirmOrder] = useState<Order | null>(null);
   const [partialOrder, setPartialOrder] = useState<Order | null>(null);
   const [partialQty, setPartialQty] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<Order | null>(null);
   const [showNotif, setShowNotif] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [toast, setToast] = useState('');
+  const [toast, setToast] = useState("");
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null);
-  const [pushState, setPushState] = useState<PushState>('enabled'); // mặc định ẩn để tránh nháy
+  const [pushState, setPushState] = useState<PushState>("enabled"); // mặc định ẩn để tránh nháy
   const [pushBarDismissed, setPushBarDismissed] = useState(false);
   const [showDeniedHelp, setShowDeniedHelp] = useState(false);
   const [enablingPush, setEnablingPush] = useState(false);
@@ -241,25 +448,37 @@ export default function DonHangPage() {
 
   const showToast = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(''), 2200);
+    setTimeout(() => setToast(""), 2200);
   };
 
   // Tín hiệu đơn mới cho công nhân: rung + 2 tiếng bíp (best-effort, không cần file âm thanh)
   const playNewOrderAlert = () => {
-    try { navigator.vibrate?.([150, 80, 150]); } catch {}
     try {
-      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      navigator.vibrate?.([150, 80, 150]);
+    } catch {}
+    try {
+      const Ctx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
       if (!Ctx) return;
       const ctx = new Ctx();
       const beep = (freq: number, start: number, dur: number) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.type = 'sine';
+        osc.type = "sine";
         osc.frequency.value = freq;
         gain.gain.setValueAtTime(0.0001, ctx.currentTime + start);
-        gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + start + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + dur);
-        osc.connect(gain); gain.connect(ctx.destination);
+        gain.gain.exponentialRampToValueAtTime(
+          0.22,
+          ctx.currentTime + start + 0.01,
+        );
+        gain.gain.exponentialRampToValueAtTime(
+          0.0001,
+          ctx.currentTime + start + dur,
+        );
+        osc.connect(gain);
+        gain.connect(ctx.destination);
         osc.start(ctx.currentTime + start);
         osc.stop(ctx.currentTime + start + dur);
       };
@@ -270,31 +489,36 @@ export default function DonHangPage() {
 
   const loadOrders = async () => {
     const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .from("orders")
+      .select("*")
+      .order("created_at", { ascending: false });
     if (error) {
-      console.error('[Orders] Query error:', error);
+      console.error("[Orders] Query error:", error);
       return;
     }
     const list = data || [];
 
     // Phát hiện đơn mới (chỉ phía công nhân) để hiện thông báo trong app
-    if (roleRef.current === 'worker') {
-      const pendingIds = list.filter(o => o.status === 'pending').map(o => o.id);
+    if (roleRef.current === "worker") {
+      const pendingIds = list
+        .filter((o) => o.status === "pending")
+        .map((o) => o.id);
       if (seenPendingIds.current === null) {
         // Lần đầu: ghi nhận, không báo (tránh báo hàng loạt đơn cũ)
         seenPendingIds.current = new Set(pendingIds);
       } else {
-        const fresh = pendingIds.filter(id => !seenPendingIds.current!.has(id));
+        const fresh = pendingIds.filter(
+          (id) => !seenPendingIds.current!.has(id),
+        );
         seenPendingIds.current = new Set(pendingIds);
         if (fresh.length > 0) {
-          const o = list.find(x => x.id === fresh[0]);
-          const name = (o && productsRef.current[o.product_id]?.name) || 'Sản phẩm';
+          const o = list.find((x) => x.id === fresh[0]);
+          const name =
+            (o && productsRef.current[o.product_id]?.name) || "Sản phẩm";
           setNewOrderAlert(
             fresh.length > 1
               ? `🔔 Có ${fresh.length} đơn hàng mới!`
-              : `🔔 Đơn mới: ${name} · ${o?.color} · ${o?.size} · ${o?.quantity} cái`
+              : `🔔 Đơn mới: ${name} · ${o?.color} · ${o?.size} · ${o?.quantity} cái`,
           );
           playNewOrderAlert();
         }
@@ -308,15 +532,18 @@ export default function DonHangPage() {
   const loadProducts = async () => {
     // select('*') để không lỗi khi cột color_images chưa được migrate
     const [{ data: categories }, { data: productsData }] = await Promise.all([
-      supabase.from('categories').select('*'),
-      supabase.from('products').select('*'),
+      supabase.from("categories").select("*"),
+      supabase.from("products").select("*"),
     ]);
     const map: ProductMap = {};
     for (const p of productsData || []) {
-      const cat = categories?.find(c => c.id === p.category_id);
+      const cat = categories?.find((c) => c.id === p.category_id);
       map[p.id] = {
-        name: p.name, icon: cat?.icon || '👔', color: cat?.color || '#4A90D9',
-        image: p.main_image_url || null, colorImages: p.color_images || {},
+        name: p.name,
+        icon: cat?.icon || "👔",
+        color: cat?.color || "#4A90D9",
+        image: p.main_image_url || null,
+        colorImages: p.color_images || {},
       };
     }
     setProducts(map);
@@ -324,7 +551,9 @@ export default function DonHangPage() {
     setProductsLoaded(true);
   };
 
-  useEffect(() => { loadProducts(); }, []);
+  useEffect(() => {
+    loadProducts();
+  }, []);
 
   // Tự ẩn thông báo đơn mới sau 8 giây
   useEffect(() => {
@@ -340,22 +569,25 @@ export default function DonHangPage() {
 
   const handleEnablePush = async () => {
     setEnablingPush(true);
-    const state = await enablePush(user?.id || '');
+    const state = await enablePush(user?.id || "");
     setPushState(state);
     setEnablingPush(false);
-    if (state === 'enabled') showToast('🔔 Đã bật thông báo đơn hàng');
-    else if (state === 'denied') setShowDeniedHelp(true);
-    else if (state === 'unsupported') showToast('Mở bằng Chrome (Android) hoặc thêm app vào màn hình chính (iPhone) để bật thông báo');
-    else showToast('Chưa bật được thông báo, thử lại');
+    if (state === "enabled") showToast("🔔 Đã bật thông báo đơn hàng");
+    else if (state === "denied") setShowDeniedHelp(true);
+    else if (state === "unsupported")
+      showToast(
+        "Mở bằng Chrome (Android) hoặc thêm app vào màn hình chính (iPhone) để bật thông báo",
+      );
+    else showToast("Chưa bật được thông báo, thử lại");
   };
 
   const handleLogout = () => {
     logout();
-    router.push('/dang-nhap');
+    router.push("/dang-nhap");
   };
 
   // Realtime + poll 2s + refetch khi quay lại tab
-  useAutoRefresh({ callback: loadOrders, table: 'orders' });
+  useAutoRefresh({ callback: loadOrders, table: "orders" });
 
   const manualRefresh = async () => {
     setRefreshing(true);
@@ -364,11 +596,17 @@ export default function DonHangPage() {
   };
 
   // Cập nhật đơn + báo lỗi rõ ràng (không nuốt lỗi)
-  const updateOrder = async (id: string, updates: Partial<Order>): Promise<boolean> => {
-    const { error } = await supabase.from('orders').update(updates).eq('id', id);
+  const updateOrder = async (
+    id: string,
+    updates: Partial<Order>,
+  ): Promise<boolean> => {
+    const { error } = await supabase
+      .from("orders")
+      .update(updates)
+      .eq("id", id);
     if (error) {
-      console.error('[Orders] Update error:', error);
-      showToast('❌ Lỗi kết nối, thử lại');
+      console.error("[Orders] Update error:", error);
+      showToast("❌ Lỗi kết nối, thử lại");
       return false;
     }
     await loadOrders();
@@ -376,59 +614,94 @@ export default function DonHangPage() {
   };
 
   const pending = orders
-    .filter(o => o.status === 'pending')
+    .filter((o) => o.status === "pending")
     .sort((a, b) => {
-      if ((a.priority === 'urgent') !== (b.priority === 'urgent')) return a.priority === 'urgent' ? -1 : 1;
-      return (b.created_at || '').localeCompare(a.created_at || '');
+      if ((a.priority === "urgent") !== (b.priority === "urgent"))
+        return a.priority === "urgent" ? -1 : 1;
+      return (b.created_at || "").localeCompare(a.created_at || "");
     });
   const doneOrders = orders
-    .filter(o => o.status === 'done')
-    .sort((a, b) => (b.completed_at || '').localeCompare(a.completed_at || ''));
-  const urgentCount = pending.filter(o => o.priority === 'urgent').length;
-  const unreadCount = orders.filter(o => o.status === 'done' && !o.is_read_by_admin).length;
+    .filter((o) => o.status === "done")
+    .sort((a, b) => (b.completed_at || "").localeCompare(a.completed_at || ""));
+  const urgentCount = pending.filter((o) => o.priority === "urgent").length;
+  const unreadCount = orders.filter(
+    (o) => o.status === "done" && !o.is_read_by_admin,
+  ).length;
 
   if (!mounted) {
     return (
       <div className="app-shell">
-        <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80dvh' }}>
-          <span style={{ fontSize: 15, color: 'var(--text-secondary)' }}>Đang tải...</span>
+        <div
+          className="page-content"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: "80dvh",
+          }}
+        >
+          <span style={{ fontSize: 15, color: "var(--text-secondary)" }}>
+            Đang tải...
+          </span>
         </div>
       </div>
     );
   }
 
   // Ghi nhật ký sản lượng khi hoàn thành đơn (nguồn dữ liệu của Lịch sử + Báo cáo)
-  const logProduction = async (order: Order, doneQty: number) => {
-    if (doneQty <= 0) return;
+  const logProduction = async (
+    order: Order,
+    doneQty: number,
+  ): Promise<string | null> => {
+    if (doneQty <= 0) return null;
     const now = new Date();
-    const { error } = await supabase.from('production_logs').insert({
-      id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    const logId = `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const { error } = await supabase.from("production_logs").insert({
+      id: logId,
       product_id: order.product_id,
-      worker_id: user?.id || 'u2',
+      worker_id: user?.id || "u2",
       order_id: order.id,
-      log_date: now.toISOString().split('T')[0],
+      log_date: now.toISOString().split("T")[0],
       size: order.size,
       color: order.color,
       quantity: doneQty,
-      note: '',
+      note: "",
       created_at: now.toISOString(),
     });
     if (error) {
-      console.error('[Orders] Không ghi được sản lượng:', error);
-      showToast('⚠️ Đơn đã xong nhưng chưa ghi được sản lượng');
+      console.error("[Orders] Không ghi được sản lượng:", error);
+      showToast("⚠️ Đơn đã xong nhưng chưa ghi được sản lượng");
+      return null;
     }
+    return logId;
+  };
+
+  // Đẩy hàng may xong sang kho Pancake — chạy ngầm, KHÔNG chặn thợ.
+  // Đơn không gắn mẫu mã Pancake thì bỏ qua hẳn: hàng đó không có đường vào kho.
+  const guiNhapKhoPancake = (order: Order, logIds: (string | null)[]) => {
+    const ids = logIds.filter((x): x is string => !!x);
+    if (!order.pancake_variation_id || !ids.length) return;
+    fetch("/api/pancake/nhap-kho", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        batch_id: `b_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
+        variation_id: order.pancake_variation_id,
+        production_log_ids: ids,
+      }),
+    }).catch(() => {});
   };
 
   // Push cho admin khi công nhân xong đơn — fire-and-forget, không chặn UI
   const notifyAdminDone = (order: Order, doneQty: number, extra: string) => {
-    if (user?.role !== 'worker') return;
+    if (user?.role !== "worker") return;
     const prod = products[order.product_id];
-    fetch('/api/send-push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    fetch("/api/send-push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        role: 'admin',
-        title: `✅ Đã xong: ${prod?.name || 'Sản phẩm'} · ${order.color} · ${order.size} · ${doneQty} cái`,
+        role: "admin",
+        title: `✅ Đã xong: ${prod?.name || "Sản phẩm"} · ${order.color} · ${order.size} · ${doneQty} cái`,
         body: extra,
       }),
     }).catch(() => {});
@@ -438,16 +711,25 @@ export default function DonHangPage() {
   const confirmDone = async () => {
     if (!confirmOrder) return;
     const ok = await updateOrder(confirmOrder.id, {
-      status: 'done', remaining_quantity: 0,
+      status: "done",
+      remaining_quantity: 0,
       completed_at: new Date().toISOString(),
-      completed_by: user?.name || 'Công nhân',
+      completed_by: user?.name || "Công nhân",
       is_read_by_admin: false,
     });
     if (ok) {
       // Ghi sản lượng đúng số vừa hoàn thành (phần còn lại của đơn)
-      await logProduction(confirmOrder, confirmOrder.remaining_quantity);
-      showToast('✅ Đã hoàn thành đơn');
-      notifyAdminDone(confirmOrder, confirmOrder.remaining_quantity, `Hoàn thành bởi ${user?.name || 'công nhân'}`);
+      const logId = await logProduction(
+        confirmOrder,
+        confirmOrder.remaining_quantity,
+      );
+      guiNhapKhoPancake(confirmOrder, [logId]);
+      showToast("✅ Đã hoàn thành đơn");
+      notifyAdminDone(
+        confirmOrder,
+        confirmOrder.remaining_quantity,
+        `Hoàn thành bởi ${user?.name || "công nhân"}`,
+      );
     }
     setConfirmOrder(null);
   };
@@ -458,41 +740,65 @@ export default function DonHangPage() {
     const ok = await updateOrder(partialOrder.id, { remaining_quantity: left });
     if (ok) {
       // Ghi sản lượng đúng số vừa may trong lần này
-      await logProduction(partialOrder, partialQty);
+      const logId = await logProduction(partialOrder, partialQty);
+      guiNhapKhoPancake(partialOrder, [logId]);
       showToast(`✅ Đã may ${partialQty} cái, còn lại ${left}`);
-      notifyAdminDone(partialOrder, partialQty, `Xong một phần — còn lại ${left} cái`);
+      notifyAdminDone(
+        partialOrder,
+        partialQty,
+        `Xong một phần — còn lại ${left} cái`,
+      );
     }
     setPartialOrder(null);
   };
 
   const handlePin = async (order: Order) => {
-    const ok = await updateOrder(order.id, { created_at: new Date().toISOString() } as Partial<Order>);
-    if (ok) showToast('📌 Đã đưa đơn lên đầu');
+    const ok = await updateOrder(order.id, {
+      created_at: new Date().toISOString(),
+    } as Partial<Order>);
+    if (ok) showToast("📌 Đã đưa đơn lên đầu");
   };
 
   const handleToggleUrgent = async (order: Order) => {
-    const newPriority = order.priority === 'urgent' ? 'normal' : 'urgent';
+    const newPriority = order.priority === "urgent" ? "normal" : "urgent";
     const ok = await updateOrder(order.id, { priority: newPriority });
-    if (ok) showToast(newPriority === 'urgent' ? '🔥 Đã đánh dấu GẤP' : 'Đã bỏ đánh dấu GẤP');
+    if (ok)
+      showToast(
+        newPriority === "urgent" ? "🔥 Đã đánh dấu GẤP" : "Đã bỏ đánh dấu GẤP",
+      );
   };
 
   const confirmDelete = async () => {
     if (!deleteConfirm) return;
-    const { error } = await supabase.from('orders').delete().eq('id', deleteConfirm.id);
-    if (error) showToast('❌ Lỗi kết nối, thử lại');
-    else { showToast('🗑 Đã xoá đơn'); await loadOrders(); }
+    const { error } = await supabase
+      .from("orders")
+      .delete()
+      .eq("id", deleteConfirm.id);
+    if (error) showToast("❌ Lỗi kết nối, thử lại");
+    else {
+      showToast("🗑 Đã xoá đơn");
+      await loadOrders();
+    }
     setDeleteConfirm(null);
   };
 
   const readAllNotifs = async () => {
-    await supabase.from('orders').update({ is_read_by_admin: true }).eq('status', 'done').eq('is_read_by_admin', false);
+    await supabase
+      .from("orders")
+      .update({ is_read_by_admin: true })
+      .eq("status", "done")
+      .eq("is_read_by_admin", false);
     loadOrders();
   };
 
   const cardProps = {
-    products, isAdmin,
+    products,
+    isAdmin,
     onDone: (o: Order) => setConfirmOrder(o),
-    onPartial: (o: Order) => { setPartialOrder(o); setPartialQty(1); },
+    onPartial: (o: Order) => {
+      setPartialOrder(o);
+      setPartialQty(1);
+    },
     onDelete: (o: Order) => setDeleteConfirm(o),
     onPin: handlePin,
     onToggleUrgent: handleToggleUrgent,
@@ -504,96 +810,243 @@ export default function DonHangPage() {
     <div className="app-shell">
       {/* ── Thông báo đơn mới (công nhân, khi app đang mở) ── */}
       {!isAdmin && newOrderAlert && (
-        <div className="new-order-alert" id="new-order-alert" onClick={() => setNewOrderAlert(null)}>
+        <div
+          className="new-order-alert"
+          id="new-order-alert"
+          onClick={() => setNewOrderAlert(null)}
+        >
           <span style={{ flex: 1 }}>{newOrderAlert}</span>
-          <button className="new-order-alert-x" aria-label="Đóng" onClick={e => { e.stopPropagation(); setNewOrderAlert(null); }}>✕</button>
+          <button
+            className="new-order-alert-x"
+            aria-label="Đóng"
+            onClick={(e) => {
+              e.stopPropagation();
+              setNewOrderAlert(null);
+            }}
+          >
+            ✕
+          </button>
         </div>
       )}
       <div className="page-content scroll-top-padding">
         {/* ── Header ── */}
-        <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div
+          className="page-header"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
           <div>
-            <h1>{isAdmin ? 'Đơn hàng' : 'Đơn cần may'}</h1>
+            <h1>{isAdmin ? "Đơn hàng" : "Đơn cần may"}</h1>
             <div className="subtitle">
               Đang chờ: <b>{pending.length}</b> đơn
-              {urgentCount > 0 && <span style={{ color: 'var(--danger)', fontWeight: 700 }}> · {urgentCount} 🔥 gấp</span>}
+              {urgentCount > 0 && (
+                <span style={{ color: "var(--danger)", fontWeight: 700 }}>
+                  {" "}
+                  · {urgentCount} 🔥 gấp
+                </span>
+              )}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             {isAdmin ? (
-              <BellButton onClick={() => setShowNotif(true)} count={unreadCount} />
+              <BellButton
+                onClick={() => setShowNotif(true)}
+                count={unreadCount}
+              />
             ) : (
               <>
-                <button className="icon-btn" id="btn-enable-push-header" onClick={handleEnablePush} disabled={enablingPush}
-                  title="Thông báo" aria-label="Thông báo"
-                  style={pushState === 'enabled' ? undefined : { background: '#FFF7E6', borderColor: '#FFE0A3' }}>
+                <button
+                  className="icon-btn"
+                  id="btn-enable-push-header"
+                  onClick={handleEnablePush}
+                  disabled={enablingPush}
+                  title="Thông báo"
+                  aria-label="Thông báo"
+                  style={
+                    pushState === "enabled"
+                      ? undefined
+                      : { background: "#FFF7E6", borderColor: "#FFE0A3" }
+                  }
+                >
                   🔔
                 </button>
-                <button className="icon-btn" id="btn-refresh-worker" onClick={manualRefresh} disabled={refreshing} title="Làm mới" aria-label="Làm mới">
-                  <span style={{ display: 'inline-block', animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>🔄</span>
+                <button
+                  className="icon-btn"
+                  id="btn-refresh-worker"
+                  onClick={manualRefresh}
+                  disabled={refreshing}
+                  title="Làm mới"
+                  aria-label="Làm mới"
+                >
+                  <span
+                    style={{
+                      display: "inline-block",
+                      animation: refreshing
+                        ? "spin 0.8s linear infinite"
+                        : "none",
+                    }}
+                  >
+                    🔄
+                  </span>
                 </button>
               </>
             )}
-            <button className="icon-btn" id="btn-logout" onClick={handleLogout} title="Đăng xuất" aria-label="Đăng xuất">🚪</button>
+            {isAdmin && (
+              <button
+                className="icon-btn"
+                id="btn-settings"
+                onClick={() => router.push("/cai-dat")}
+                title="Cài đặt"
+                aria-label="Cài đặt"
+              >
+                ⚙️
+              </button>
+            )}
+            <button
+              className="icon-btn"
+              id="btn-logout"
+              onClick={handleLogout}
+              title="Đăng xuất"
+              aria-label="Đăng xuất"
+            >
+              🚪
+            </button>
           </div>
         </div>
 
         {/* ── Nút bật thông báo (hiện khi chưa bật) ── */}
-        {!pushBarDismissed && (pushState === 'off' || pushState === 'denied') && (
-          <div className="push-enable-bar">
-            <span className="push-enable-icon">🔔</span>
-            <span style={{ flex: 1 }}>
-              {pushState === 'denied'
-                ? 'Thông báo đang bị chặn trên trình duyệt'
-                : `Bật thông báo để nhận báo đơn ${isAdmin ? 'hoàn thành' : 'hàng mới'}`}
-            </span>
-            <button className="push-enable-btn" id="btn-enable-push" onClick={handleEnablePush} disabled={enablingPush}>
-              {enablingPush ? '...' : (pushState === 'denied' ? 'Xem cách bật' : 'Bật')}
-            </button>
-            <button className="push-enable-x" aria-label="Đóng" onClick={() => setPushBarDismissed(true)}>✕</button>
-          </div>
-        )}
+        {!pushBarDismissed &&
+          (pushState === "off" || pushState === "denied") && (
+            <div className="push-enable-bar">
+              <span className="push-enable-icon">🔔</span>
+              <span style={{ flex: 1 }}>
+                {pushState === "denied"
+                  ? "Thông báo đang bị chặn trên trình duyệt"
+                  : `Bật thông báo để nhận báo đơn ${isAdmin ? "hoàn thành" : "hàng mới"}`}
+              </span>
+              <button
+                className="push-enable-btn"
+                id="btn-enable-push"
+                onClick={handleEnablePush}
+                disabled={enablingPush}
+              >
+                {enablingPush
+                  ? "..."
+                  : pushState === "denied"
+                    ? "Xem cách bật"
+                    : "Bật"}
+              </button>
+              <button
+                className="push-enable-x"
+                aria-label="Đóng"
+                onClick={() => setPushBarDismissed(true)}
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
         {/* ── Tabs Chờ may / Đã xong (dùng chung admin + công nhân) ── */}
-        <div className="mini-tabs" style={{ background: '#fff' }}>
-          <button className={`mini-tab ${activeTab === 'pending' ? 'active' : ''}`} onClick={() => setActiveTab('pending')} id="tab-pending">
+        <div className="mini-tabs" style={{ background: "#fff" }}>
+          <button
+            className={`mini-tab ${activeTab === "pending" ? "active" : ""}`}
+            onClick={() => setActiveTab("pending")}
+            id="tab-pending"
+          >
             Chờ may ({pending.length})
           </button>
-          <button className={`mini-tab ${activeTab === 'done' ? 'active' : ''}`} onClick={() => setActiveTab('done')} id="tab-done">
+          <button
+            className={`mini-tab ${activeTab === "done" ? "active" : ""}`}
+            onClick={() => setActiveTab("done")}
+            id="tab-done"
+          >
             Đã xong ({doneOrders.length})
           </button>
         </div>
         <div className="mt-8" />
 
         {/* ── Danh sách theo tab ── */}
-        {activeTab === 'pending' && (
-          pending.length === 0
-            ? <div className="empty-state"><div className="empty-icon">🎉</div>{isAdmin ? 'Không có đơn nào đang chờ!' : 'Không có đơn nào! Nghỉ ngơi chút 😊'}</div>
-            : pending.map(o => <OrderCard key={o.id} order={o} {...cardProps} />)
-        )}
-        {activeTab === 'done' && (
-          doneOrders.length === 0
-            ? <div className="empty-state"><div className="empty-icon">📋</div>Chưa có đơn nào hoàn thành</div>
-            : doneOrders.map(o => <DoneCard key={o.id} order={o} products={products} onImageClick={setLightbox} />)
-        )}
+        {activeTab === "pending" &&
+          (pending.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">🎉</div>
+              {isAdmin
+                ? "Không có đơn nào đang chờ!"
+                : "Không có đơn nào! Nghỉ ngơi chút 😊"}
+            </div>
+          ) : (
+            pending.map((o) => (
+              <OrderCard key={o.id} order={o} {...cardProps} />
+            ))
+          ))}
+        {activeTab === "done" &&
+          (doneOrders.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">📋</div>Chưa có đơn nào hoàn thành
+            </div>
+          ) : (
+            doneOrders.map((o) => (
+              <DoneCard
+                key={o.id}
+                order={o}
+                products={products}
+                onImageClick={setLightbox}
+              />
+            ))
+          ))}
       </div>
 
-      {isAdmin && <button className="fab" id="fab-dat-hang" onClick={() => router.push('/tao-don')}>+</button>}
+      {isAdmin && (
+        <button
+          className="fab"
+          id="fab-dat-hang"
+          onClick={() => router.push("/tao-don")}
+        >
+          +
+        </button>
+      )}
       <BottomNav />
 
       {/* ── Modals (dùng chung cho cả 2 vai trò) ── */}
-      {showNotif && <NotifPanel orders={orders} products={products} onClose={() => setShowNotif(false)} onReadAll={readAllNotifs} />}
+      {showNotif && (
+        <NotifPanel
+          orders={orders}
+          products={products}
+          onClose={() => setShowNotif(false)}
+          onReadAll={readAllNotifs}
+        />
+      )}
 
       {confirmOrder && (
         <div className="modal-overlay" onClick={() => setConfirmOrder(null)}>
-          <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+          <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="modal-title">Xác nhận hoàn thành</div>
             <p style={{ fontSize: 16, lineHeight: 1.6 }}>
-              Đã may xong <b>{confirmOrder.remaining_quantity} cái {products[confirmOrder.product_id]?.name} · {confirmOrder.color} · {confirmOrder.size}</b>?
+              Đã may xong{" "}
+              <b>
+                {confirmOrder.remaining_quantity} cái{" "}
+                {products[confirmOrder.product_id]?.name} · {confirmOrder.color}{" "}
+                · {confirmOrder.size}
+              </b>
+              ?
             </p>
             <div className="modal-actions">
-              <button className="btn btn-outline" onClick={() => setConfirmOrder(null)}>Huỷ</button>
-              <button className="btn btn-success" id="btn-confirm-done" onClick={confirmDone}>✓ Xác nhận</button>
+              <button
+                className="btn btn-outline"
+                onClick={() => setConfirmOrder(null)}
+              >
+                Huỷ
+              </button>
+              <button
+                className="btn btn-success"
+                id="btn-confirm-done"
+                onClick={confirmDone}
+              >
+                ✓ Xác nhận
+              </button>
             </div>
           </div>
         </div>
@@ -601,24 +1054,82 @@ export default function DonHangPage() {
 
       {partialOrder && (
         <div className="modal-overlay" onClick={() => setPartialOrder(null)}>
-          <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+          <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="modal-title">Xong một phần</div>
-            <p style={{ fontSize: 15, marginBottom: 16, color: 'var(--text-secondary)' }}>
-              {products[partialOrder.product_id]?.name} · {partialOrder.color} · {partialOrder.size} — Còn {partialOrder.remaining_quantity} cái
+            <p
+              style={{
+                fontSize: 15,
+                marginBottom: 16,
+                color: "var(--text-secondary)",
+              }}
+            >
+              {products[partialOrder.product_id]?.name} · {partialOrder.color} ·{" "}
+              {partialOrder.size} — Còn {partialOrder.remaining_quantity} cái
             </p>
             <div className="form-label">Số cái đã may xong:</div>
-            <div className="qty-stepper" style={{ justifyContent: 'center', marginBottom: 20 }}>
-              <button className="qty-btn" onClick={() => setPartialQty(Math.max(1, partialQty - 1))}>−</button>
-              <input className="qty-input" type="number" value={partialQty} min={1} max={partialOrder.remaining_quantity - 1}
-                onChange={e => setPartialQty(Math.min(partialOrder.remaining_quantity - 1, Math.max(1, +e.target.value)))} />
-              <button className="qty-btn" onClick={() => setPartialQty(Math.min(partialOrder.remaining_quantity - 1, partialQty + 1))}>+</button>
+            <div
+              className="qty-stepper"
+              style={{ justifyContent: "center", marginBottom: 20 }}
+            >
+              <button
+                className="qty-btn"
+                onClick={() => setPartialQty(Math.max(1, partialQty - 1))}
+              >
+                −
+              </button>
+              <input
+                className="qty-input"
+                type="number"
+                value={partialQty}
+                min={1}
+                max={partialOrder.remaining_quantity - 1}
+                onChange={(e) =>
+                  setPartialQty(
+                    Math.min(
+                      partialOrder.remaining_quantity - 1,
+                      Math.max(1, +e.target.value),
+                    ),
+                  )
+                }
+              />
+              <button
+                className="qty-btn"
+                onClick={() =>
+                  setPartialQty(
+                    Math.min(
+                      partialOrder.remaining_quantity - 1,
+                      partialQty + 1,
+                    ),
+                  )
+                }
+              >
+                +
+              </button>
             </div>
-            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 16, textAlign: 'center' }}>
+            <p
+              style={{
+                fontSize: 14,
+                color: "var(--text-secondary)",
+                marginBottom: 16,
+                textAlign: "center",
+              }}
+            >
               Còn lại: <b>{partialOrder.remaining_quantity - partialQty} cái</b>
             </p>
             <div className="modal-actions">
-              <button className="btn btn-outline" onClick={() => setPartialOrder(null)}>Huỷ</button>
-              <button className="btn btn-primary" id="btn-confirm-partial" onClick={confirmPartial}>Lưu</button>
+              <button
+                className="btn btn-outline"
+                onClick={() => setPartialOrder(null)}
+              >
+                Huỷ
+              </button>
+              <button
+                className="btn btn-primary"
+                id="btn-confirm-partial"
+                onClick={confirmPartial}
+              >
+                Lưu
+              </button>
             </div>
           </div>
         </div>
@@ -626,36 +1137,78 @@ export default function DonHangPage() {
 
       {deleteConfirm && (
         <div className="modal-overlay" onClick={() => setDeleteConfirm(null)}>
-          <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+          <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="modal-title">Xác nhận xoá</div>
             <p style={{ fontSize: 16, lineHeight: 1.6 }}>
-              Xoá đơn <b>{products[deleteConfirm.product_id]?.name} · {deleteConfirm.color} · {deleteConfirm.size} · {deleteConfirm.remaining_quantity} cái</b>?
+              Xoá đơn{" "}
+              <b>
+                {products[deleteConfirm.product_id]?.name} ·{" "}
+                {deleteConfirm.color} · {deleteConfirm.size} ·{" "}
+                {deleteConfirm.remaining_quantity} cái
+              </b>
+              ?
             </p>
             <div className="modal-actions">
-              <button className="btn btn-outline" onClick={() => setDeleteConfirm(null)}>Huỷ</button>
-              <button className="btn btn-danger" id="btn-confirm-delete-order" onClick={confirmDelete}>🗑 Xoá</button>
+              <button
+                className="btn btn-outline"
+                onClick={() => setDeleteConfirm(null)}
+              >
+                Huỷ
+              </button>
+              <button
+                className="btn btn-danger"
+                id="btn-confirm-delete-order"
+                onClick={confirmDelete}
+              >
+                🗑 Xoá
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {lightbox && <ImageLightbox image={lightbox} onClose={() => setLightbox(null)} />}
+      {lightbox && (
+        <ImageLightbox image={lightbox} onClose={() => setLightbox(null)} />
+      )}
 
       {showDeniedHelp && (
         <div className="modal-overlay" onClick={() => setShowDeniedHelp(false)}>
-          <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+          <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="modal-title">🔔 Bật lại thông báo</div>
             <p style={{ fontSize: 15, lineHeight: 1.6, marginBottom: 12 }}>
-              Trước đây thông báo đã bị chặn nên trình duyệt không cho hỏi lại. Cách bật thủ công (trên Chrome điện thoại):
+              Trước đây thông báo đã bị chặn nên trình duyệt không cho hỏi lại.
+              Cách bật thủ công (trên Chrome điện thoại):
             </p>
-            <ol style={{ fontSize: 15, lineHeight: 1.7, paddingLeft: 20, color: 'var(--text)' }}>
-              <li>Bấm biểu tượng <b>🔒</b> (hoặc <b>ⓘ / ⋮</b>) bên cạnh địa chỉ web ở trên cùng.</li>
-              <li>Chọn <b>Quyền</b> (Permissions) → <b>Thông báo</b> (Notifications).</li>
-              <li>Chuyển sang <b>Cho phép</b> (Allow).</li>
-              <li>Quay lại app, tải lại trang rồi bấm <b>Bật</b> lần nữa.</li>
+            <ol
+              style={{
+                fontSize: 15,
+                lineHeight: 1.7,
+                paddingLeft: 20,
+                color: "var(--text)",
+              }}
+            >
+              <li>
+                Bấm biểu tượng <b>🔒</b> (hoặc <b>ⓘ / ⋮</b>) bên cạnh địa chỉ
+                web ở trên cùng.
+              </li>
+              <li>
+                Chọn <b>Quyền</b> (Permissions) → <b>Thông báo</b>{" "}
+                (Notifications).
+              </li>
+              <li>
+                Chuyển sang <b>Cho phép</b> (Allow).
+              </li>
+              <li>
+                Quay lại app, tải lại trang rồi bấm <b>Bật</b> lần nữa.
+              </li>
             </ol>
             <div className="modal-actions">
-              <button className="btn btn-primary" onClick={() => setShowDeniedHelp(false)}>Đã hiểu</button>
+              <button
+                className="btn btn-primary"
+                onClick={() => setShowDeniedHelp(false)}
+              >
+                Đã hiểu
+              </button>
             </div>
           </div>
         </div>
