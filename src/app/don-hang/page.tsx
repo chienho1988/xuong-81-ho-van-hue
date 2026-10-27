@@ -339,7 +339,9 @@ function NhomCard({
             {nhom.soDon > 1 && (
               <span className="chip chip-gop">gộp {nhom.soDon} đơn</span>
             )}
-            {nhom.coDonTre && <span className="chip chip-due">🔴 Có đơn trễ</span>}
+            {nhom.coDonTre && (
+              <span className="chip chip-due">🔴 Có đơn trễ</span>
+            )}
           </div>
           {nhom.hanGapNhat && (
             <div className="order-note">⏰ Hạn gấp nhất: {nhom.hanGapNhat}</div>
@@ -512,6 +514,15 @@ function OrderCard({
             <span className="chip">Size {order.size}</span>
             <span className="chip">{order.color}</span>
             {dueToday && <span className="chip chip-due">⏰ Hạn hôm nay</span>}
+            {isAdmin && order.source === "pancake" && (
+              <span className="chip chip-pancake">TỪ PANCAKE</span>
+            )}
+            {isAdmin && order.source !== "pancake" && (
+              <span className="chip">TỰ TẠO</span>
+            )}
+            {isAdmin && !order.pancake_variation_id && (
+              <span className="chip chip-khong-kho">KHÔNG VÀO KHO</span>
+            )}
             {!isAdmin && coSoCat(order) && (
               <span className="chip chip-cut">
                 MAY ĐƯỢC {soMayDuoc(order)} CÁI
