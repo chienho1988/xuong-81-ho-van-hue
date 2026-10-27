@@ -12,6 +12,8 @@ import {
   enablePush,
   type PushState,
 } from "@/lib/pushNotifications";
+import { soMayDuoc, soDaMay, kepSoCat } from "@/lib/cat";
+import { ghiSoCat } from "@/lib/supabaseService";
 
 type ProductMap = Record<
   string,
@@ -251,6 +253,122 @@ function NotifPanel({
   );
 }
 
+// Đơn có số cắt hay không. Chưa chạy migration thì cột cut_quantity không tồn tại
+// và mọi thứ liên quan tới cắt phải tự ẩn đi, không được làm trắng màn hình.
+function coSoCat(order: Order): boolean {
+  return order.cut_quantity !== undefined && order.cut_quantity !== null;
+}
+
+// ─── THANH TIẾN ĐỘ CẮT / MAY ───────────────────────────────────
+// Xanh = đã may xong. Cam = đã cắt đang chờ may. Xám = chưa cắt.
+// Vạch cam chính là lượng việc đã dọn sẵn cho thợ.
+function TienDoCat({ order }: { order: Order }) {
+  if (!coSoCat(order)) return null;
+
+  const tong = order.quantity || 1;
+  const daMay = soDaMay(order);
+  const daCat = order.cut_quantity ?? 0;
+  const phanMay = Math.min(100, (daMay / tong) * 100);
+  const phanCho = Math.min(100 - phanMay, (Math.max(0, daCat - daMay) / tong) * 100);
+
+  return (
+    <div className="cut-progress">
+      <div className="cut-progress-labels">
+        <span className="cut-label-cut">
+          ✂️ {daCat > 0 ? `Đã cắt ${daCat}/${tong}` : `Chưa cắt 0/${tong}`}
+        </span>
+        <span className="cut-label-sew">
+          🧵 Đã may {daMay}/{tong}
+        </span>
+      </div>
+      <div className="cut-progress-bar">
+        {phanMay > 0 && (
+          <i className="seg-sew" style={{ width: `${phanMay}%` }} />
+        )}
+        {phanCho > 0 && (
+          <i className="seg-cut" style={{ width: `${phanCho}%` }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── BÀN CẮT ───────────────────────────────────────────────────
+// Một dòng một đơn, bàn tăng/giảm, một nút Lưu cho cả lượt. Dùng khi đứng ở bàn
+// cắt làm nhiều đơn liền tay. Đơn gấp xếp đầu, đơn cắt đủ nền xanh.
+function BanCat({
+  dons,
+  products,
+  so,
+  setSo,
+  onLuu,
+  onThoat,
+}: {
+  dons: Order[];
+  products: ProductMap;
+  so: Record<string, number>;
+  setSo: (v: Record<string, number>) => void;
+  onLuu: () => void;
+  onThoat: () => void;
+}) {
+  const xep = [...dons].sort((a, b) => {
+    const ga = a.priority === "urgent" ? 0 : 1;
+    const gb = b.priority === "urgent" ? 0 : 1;
+    if (ga !== gb) return ga - gb;
+    return (a.due_date || "9999").localeCompare(b.due_date || "9999");
+  });
+  const tong = Object.values(so).reduce((t, n) => t + (n || 0), 0);
+
+  const doi = (id: string, delta: number, toiDa: number) => {
+    const moi = Math.max(0, Math.min(toiDa, (so[id] || 0) + delta));
+    setSo({ ...so, [id]: moi });
+  };
+
+  return (
+    <div>
+      <div className="ban-cat-head">
+        <span>ĐANG Ở CHẾ ĐỘ BÀN CẮT</span>
+        <button className="btn-ghost btn-sm" onClick={onThoat}>
+          Thoát
+        </button>
+      </div>
+
+      {xep.map((o) => {
+        const chuaCat = Math.max(0, (o.quantity ?? 0) - (o.cut_quantity ?? 0));
+        const du = chuaCat === 0;
+        return (
+          <div key={o.id} className={`ban-cat-row ${du ? "du" : ""}`}>
+            <div className="ban-cat-name">
+              <b>{products[o.product_id]?.name || "Sản phẩm đã xoá"}</b>
+              <span>
+                {o.size} · {o.color}
+                {o.priority === "urgent" ? " · 🔥 gấp" : ""} · đã cắt{" "}
+                {o.cut_quantity ?? 0}
+              </span>
+            </div>
+            <div className="ban-cat-stepper">
+              <button onClick={() => doi(o.id, -1, chuaCat)}>−</button>
+              <b>{so[o.id] || 0}</b>
+              <button className="plus" onClick={() => doi(o.id, 1, chuaCat)}>
+                +
+              </button>
+            </div>
+            <div className="ban-cat-of">{du ? "đủ" : `/${chuaCat}`}</div>
+          </div>
+        );
+      })}
+
+      <div className="ban-cat-total">
+        <span>Ghi thêm lần này</span>
+        <span>{tong} cái</span>
+      </div>
+      <button className="btn btn-cut btn-full" onClick={onLuu}>
+        Lưu {tong} cái đã cắt
+      </button>
+    </div>
+  );
+}
+
 // ─── THẺ ĐƠN HÀNG (dùng chung admin + công nhân) ───────────────
 function OrderCard({
   order,
@@ -262,6 +380,7 @@ function OrderCard({
   onPin,
   onToggleUrgent,
   onEdit,
+  onCut,
   onImageClick,
 }: {
   order: Order;
@@ -273,6 +392,7 @@ function OrderCard({
   onPin: (o: Order) => void;
   onToggleUrgent: (o: Order) => void;
   onEdit: (o: Order) => void;
+  onCut: (o: Order) => void;
   onImageClick: (img: string) => void;
 }) {
   const product = products[order.product_id];
@@ -298,7 +418,13 @@ function OrderCard({
             <span className="chip">Size {order.size}</span>
             <span className="chip">{order.color}</span>
             {dueToday && <span className="chip chip-due">⏰ Hạn hôm nay</span>}
+            {!isAdmin && coSoCat(order) && (
+              <span className="chip chip-cut">
+                MAY ĐƯỢC {soMayDuoc(order)} CÁI
+              </span>
+            )}
           </div>
+          <TienDoCat order={order} />
           {order.note && <div className="order-note">📝 {order.note}</div>}
         </div>
         <div className="order-qty">
@@ -310,6 +436,13 @@ function OrderCard({
       {isAdmin ? (
         <div className="order-actions">
           <span className="order-time">Tạo {formatWhen(order.created_at)}</span>
+          <button
+            className="act-btn act-cut"
+            id={`btn-cut-${order.id}`}
+            onClick={() => onCut(order)}
+          >
+            ✂️ Cắt
+          </button>
           <button
             className="act-btn"
             id={`btn-edit-${order.id}`}
@@ -429,6 +562,18 @@ export default function DonHangPage() {
   const [confirmOrder, setConfirmOrder] = useState<Order | null>(null);
   const [partialOrder, setPartialOrder] = useState<Order | null>(null);
   const [partialQty, setPartialQty] = useState(1);
+
+  // ── Ghi số đã cắt (chỉ chủ xưởng) ──
+  const [cutOrder, setCutOrder] = useState<Order | null>(null);
+  const [cutQty, setCutQty] = useState(1);
+  const [banCat, setBanCat] = useState(false);
+  const [banCatSo, setBanCatSo] = useState<Record<string, number>>({});
+  // Thợ ghi may nhiều hơn số đã cắt: nhắc một câu rồi vẫn cho ghi.
+  const [canhBaoCat, setCanhBaoCat] = useState<{
+    don: Order;
+    so: number;
+    tiepTuc: () => void;
+  } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Order | null>(null);
   const [showNotif, setShowNotif] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -752,6 +897,42 @@ export default function DonHangPage() {
     setPartialOrder(null);
   };
 
+  // ── Ghi số đã cắt ────────────────────────────────────────────
+  const luuSoCat = async (don: Order, soThem: number) => {
+    const canhBao = await ghiSoCat(don, soThem, user?.name || "Chủ xưởng");
+    if (canhBao) showToast(`⚠️ ${canhBao}`);
+    else showToast(`✂️ Đã ghi ${soThem} cái đã cắt`);
+    await loadOrders();
+  };
+
+  const luuBanCat = async () => {
+    const viec = Object.entries(banCatSo).filter(([, so]) => so > 0);
+    if (!viec.length) {
+      setBanCat(false);
+      return;
+    }
+    let tong = 0;
+    for (const [id, so] of viec) {
+      const don = orders.find((o) => o.id === id);
+      if (!don) continue;
+      await ghiSoCat(don, so, user?.name || "Chủ xưởng");
+      tong += so;
+    }
+    setBanCatSo({});
+    setBanCat(false);
+    showToast(`✂️ Đã ghi ${tong} cái đã cắt`);
+    await loadOrders();
+  };
+
+  // Thợ sắp ghi may nhiều hơn số đã cắt — nhắc, KHÔNG chặn.
+  const ghiMayCoNhac = (don: Order, so: number, tiepTuc: () => void) => {
+    if (coSoCat(don) && so > soMayDuoc(don)) {
+      setCanhBaoCat({ don, so, tiepTuc });
+      return;
+    }
+    tiepTuc();
+  };
+
   const handlePin = async (order: Order) => {
     const ok = await updateOrder(order.id, {
       created_at: new Date().toISOString(),
@@ -794,7 +975,8 @@ export default function DonHangPage() {
   const cardProps = {
     products,
     isAdmin,
-    onDone: (o: Order) => setConfirmOrder(o),
+    onDone: (o: Order) =>
+      ghiMayCoNhac(o, o.remaining_quantity, () => setConfirmOrder(o)),
     onPartial: (o: Order) => {
       setPartialOrder(o);
       setPartialQty(1);
@@ -803,6 +985,10 @@ export default function DonHangPage() {
     onPin: handlePin,
     onToggleUrgent: handleToggleUrgent,
     onEdit: (o: Order) => router.push(`/tao-don?edit=${o.id}`),
+    onCut: (o: Order) => {
+      setCutOrder(o);
+      setCutQty(1);
+    },
     onImageClick: (img: string) => setLightbox(img),
   };
 
@@ -896,6 +1082,20 @@ export default function DonHangPage() {
             )}
             {isAdmin && (
               <button
+                className={`icon-btn ${banCat ? "on" : ""}`}
+                id="btn-ban-cat"
+                onClick={() => {
+                  setBanCat(!banCat);
+                  setBanCatSo({});
+                }}
+                title="Bàn cắt"
+                aria-label="Bàn cắt"
+              >
+                ✂️
+              </button>
+            )}
+            {isAdmin && (
+              <button
                 className="icon-btn"
                 id="btn-settings"
                 onClick={() => router.push("/cai-dat")}
@@ -969,7 +1169,21 @@ export default function DonHangPage() {
         <div className="mt-8" />
 
         {/* ── Danh sách theo tab ── */}
+        {activeTab === "pending" && isAdmin && banCat && (
+          <BanCat
+            dons={pending}
+            products={products}
+            so={banCatSo}
+            setSo={setBanCatSo}
+            onLuu={luuBanCat}
+            onThoat={() => {
+              setBanCat(false);
+              setBanCatSo({});
+            }}
+          />
+        )}
         {activeTab === "pending" &&
+          !(isAdmin && banCat) &&
           (pending.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">🎉</div>
@@ -1126,9 +1340,133 @@ export default function DonHangPage() {
               <button
                 className="btn btn-primary"
                 id="btn-confirm-partial"
-                onClick={confirmPartial}
+                onClick={() =>
+                  ghiMayCoNhac(partialOrder, partialQty, confirmPartial)
+                }
               >
                 Lưu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bảng ghi số đã cắt (chỉ chủ xưởng) ── */}
+      {cutOrder && (
+        <div className="modal-overlay" onClick={() => setCutOrder(null)}>
+          <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-title">Vừa cắt được bao nhiêu cái?</div>
+            <p
+              style={{
+                fontSize: 15,
+                marginBottom: 16,
+                color: "var(--text-secondary)",
+              }}
+            >
+              {products[cutOrder.product_id]?.name} · {cutOrder.color} ·{" "}
+              {cutOrder.size}
+              <br />
+              Đơn {cutOrder.quantity} cái — đã cắt {cutOrder.cut_quantity ?? 0},
+              còn {Math.max(0, cutOrder.quantity - (cutOrder.cut_quantity ?? 0))}{" "}
+              cái chưa cắt
+            </p>
+            <div
+              className="qty-stepper"
+              style={{ justifyContent: "center", marginBottom: 16 }}
+            >
+              <button
+                className="qty-btn"
+                onClick={() => setCutQty(Math.max(1, cutQty - 1))}
+              >
+                −
+              </button>
+              <span className="qty-value">{cutQty}</span>
+              <button
+                className="qty-btn"
+                onClick={() => setCutQty(cutQty + 1)}
+              >
+                +
+              </button>
+            </div>
+            <div className="cut-chips">
+              {[1, 2, 5].map((n) => (
+                <button key={n} onClick={() => setCutQty(n)}>
+                  +{n}
+                </button>
+              ))}
+              <button
+                className="wide"
+                onClick={() =>
+                  setCutQty(
+                    Math.max(
+                      1,
+                      cutOrder.quantity - (cutOrder.cut_quantity ?? 0),
+                    ),
+                  )
+                }
+              >
+                Cắt hết (
+                {Math.max(
+                  0,
+                  cutOrder.quantity - (cutOrder.cut_quantity ?? 0),
+                )}
+                )
+              </button>
+            </div>
+            <div className="cut-after">
+              Sau khi lưu: <b>đã cắt{" "}
+              {kepSoCat(cutOrder, (cutOrder.cut_quantity ?? 0) + cutQty)
+                .cutQuantity}
+              /{cutOrder.quantity}</b>
+            </div>
+            <div className="modal-actions">
+              <button
+                className="btn btn-outline"
+                onClick={() => setCutOrder(null)}
+              >
+                Huỷ
+              </button>
+              <button
+                className="btn btn-cut"
+                id="btn-confirm-cut"
+                onClick={async () => {
+                  const don = cutOrder;
+                  setCutOrder(null);
+                  await luuSoCat(don, cutQty);
+                }}
+              >
+                Lưu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Nhắc thợ khi ghi may nhiều hơn số đã cắt (nhắc, không chặn) ── */}
+      {canhBaoCat && (
+        <div className="modal-overlay" onClick={() => setCanhBaoCat(null)}>
+          <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-title">Ghi {canhBaoCat.so} cái đã may?</div>
+            <div className="cut-warn">
+              Đơn này mới cắt {canhBaoCat.don.cut_quantity ?? 0} cái. Chủ xưởng
+              chưa ghi số cắt, hoặc đếm nhầm?
+            </div>
+            <div className="modal-actions">
+              <button
+                className="btn btn-outline"
+                onClick={() => setCanhBaoCat(null)}
+              >
+                Để xem lại
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  const tiep = canhBaoCat.tiepTuc;
+                  setCanhBaoCat(null);
+                  tiep();
+                }}
+              >
+                Vẫn ghi {canhBaoCat.so}
               </button>
             </div>
           </div>
