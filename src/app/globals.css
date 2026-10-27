@@ -1652,3 +1652,110 @@ body {
   color: #1976d2;
   background: #fff;
 }
+
+/* ===========================================================
+   BÁO CÁO: TAB CON + NHẬT KÝ NHẬP KHO PANCAKE (mục 9 và 11)
+   =========================================================== */
+
+.tab-con {
+  display: flex;
+  gap: 6px;
+  padding: 0 12px 10px;
+  overflow-x: auto;
+}
+.tab-con button {
+  flex: 1;
+  white-space: nowrap;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #757575;
+}
+.tab-con button.on {
+  background: #1976d2;
+  color: #fff;
+  border-color: #1976d2;
+}
+
+.kho-dong {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 0 12px 7px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.kho-dong.loi {
+  border-color: var(--danger);
+  background: #fff3f3;
+}
+.kho-chinh b {
+  display: block;
+  font-size: 15px;
+}
+.kho-chinh span {
+  font-size: 11.5px;
+  color: #9e9e9e;
+}
+.kho-loi {
+  font-size: 12px;
+  color: var(--danger);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+.kho-bo-qua {
+  font-size: 12px;
+  color: #757575;
+  margin-top: 4px;
+}
+.kho-nut {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: none;
+}
+.kho-nut button {
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: #616161;
+  white-space: nowrap;
+}
+.kho-nut button:first-child {
+  border-color: #1976d2;
+  color: #1976d2;
+}
+.kho-trang-thai {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 20px;
+  flex: none;
+  white-space: nowrap;
+}
+.kho-trang-thai.ok {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.kho-trang-thai.pending {
+  background: #fff3e0;
+  color: #e65100;
+}
+.kho-trang-thai.skipped {
+  background: #eee;
+  color: #616161;
+}
+
+/* Dòng cắt trong Lịch sử */
+.log-row.log-cat .log-qty {
+  color: #ef6c00;
+}

@@ -1,14 +1,99 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import BottomNav from '@/components/BottomNav';
-import { useAuth } from '@/lib/AuthContext';
-import { supabase } from '@/lib/supabaseClient';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import BottomNav from "@/components/BottomNav";
+import { useAuth } from "@/lib/AuthContext";
+import { supabase } from "@/lib/supabaseClient";
 
 function getMonthRange(year: number, month: number) {
-  const start = `${year}-${String(month).padStart(2, '0')}-01`;
-  const end = new Date(year, month, 0).toISOString().split('T')[0];
+  const start = `${year}-${String(month).padStart(2, "0")}-01`;
+  const end = new Date(year, month, 0).toISOString().split("T")[0];
   return { start, end };
+}
+
+// ─── TAB NHẬP KHO PANCAKE ──────────────────────────────────────
+// Dòng lỗi hiện đỏ kèm lý do Pancake trả về. "Tôi đã tự nhập tay" thay cho chữ
+// "Bỏ qua" mơ hồ: nó nói thẳng hậu quả.
+function TabNhapKho({
+  dong,
+  onThuLai,
+  onTuNhapTay,
+}: {
+  dong: any[];
+  onThuLai: () => void;
+  onTuNhapTay: (batchId: string) => void;
+}) {
+  const thang = new Date().toISOString().slice(0, 7);
+  const cuaThang = dong.filter((d) => (d.created_at || "").startsWith(thang));
+  const tongCai = cuaThang
+    .filter((d) => d.status === "ok")
+    .reduce((t, d) => t + (d.quantity || 0), 0);
+  const soLoi = cuaThang.filter((d) => d.status === "error").length;
+
+  return (
+    <>
+      <div className="report-stat">
+        <div className="report-stat-label">Tháng này</div>
+        <div className="report-stat-val">{tongCai} cái đã vào kho</div>
+        <div className="report-row" style={{ marginTop: 10 }}>
+          <span>Số phiếu nhập</span>
+          <b>{cuaThang.filter((d) => d.status === "ok").length}</b>
+        </div>
+        <div className="report-row">
+          <span>Đang chờ</span>
+          <b>{cuaThang.filter((d) => d.status === "pending").length}</b>
+        </div>
+        <div className="report-row">
+          <span>Lỗi chưa xử lý</span>
+          <b style={{ color: soLoi ? "var(--danger)" : undefined }}>{soLoi}</b>
+        </div>
+      </div>
+
+      {dong.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">📦</div>Chưa có phiếu nhập kho nào
+        </div>
+      ) : (
+        dong.map((d) => (
+          <div
+            key={d.batch_id}
+            className={`kho-dong ${d.status === "error" ? "loi" : ""}`}
+          >
+            <div className="kho-chinh">
+              <b>{d.quantity} cái</b>
+              <span>
+                {(d.created_at || "").slice(0, 16).replace("T", " ")}
+                {d.purchase_display_id ? ` · phiếu ${d.purchase_display_id}` : ""}
+              </span>
+              {d.status === "error" && d.error_message && (
+                <div className="kho-loi">{d.error_message}</div>
+              )}
+              {d.status === "skipped" && (
+                <div className="kho-bo-qua">Chủ xưởng tự nhập tay</div>
+              )}
+            </div>
+            {d.status === "error" ? (
+              <div className="kho-nut">
+                <button onClick={onThuLai}>Thử lại</button>
+                <button onClick={() => onTuNhapTay(d.batch_id)}>
+                  Tôi đã tự nhập tay
+                </button>
+              </div>
+            ) : (
+              <span className={`kho-trang-thai ${d.status}`}>
+                {d.status === "ok"
+                  ? "đã vào kho"
+                  : d.status === "pending"
+                    ? "đang chờ"
+                    : "bỏ qua"}
+              </span>
+            )}
+          </div>
+        ))
+      )}
+    </>
+  );
 }
 
 export default function BaoCaoPage() {
@@ -19,15 +104,58 @@ export default function BaoCaoPage() {
   const [logs, setLogs] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  // Tab con của Báo cáo: Tháng · Nhập kho Pancake · Nhập SL · Lịch sử (mục 11).
+  const [tab, setTab] = useState<"thang" | "nhap-kho">("thang");
+  const [dongCat, setDongCat] = useState<any[]>([]);
+  const [nhapKho, setNhapKho] = useState<any[]>([]);
+  const router = useRouter();
 
   const loadData = async () => {
-    const { data: logsData } = await supabase.from('production_logs').select('*');
-    const { data: categoriesData } = await supabase.from('categories').select('*');
-    const { data: productsData } = await supabase.from('products').select('*');
+    const { data: logsData } = await supabase
+      .from("production_logs")
+      .select("*");
+    const { data: categoriesData } = await supabase
+      .from("categories")
+      .select("*");
+    const { data: productsData } = await supabase.from("products").select("*");
 
     if (logsData) setLogs(logsData);
     if (categoriesData) setCategories(categoriesData);
     if (productsData) setProducts(productsData);
+
+    // Sổ cắt và hàng đợi nhập kho — chưa chạy migration thì để trống, không đổ.
+    const { data: catData } = await supabase.from("cutting_logs").select("*");
+    setDongCat(catData || []);
+    const { data: khoData } = await supabase
+      .from("pancake_stock_ins")
+      .select("*")
+      .order("created_at", { ascending: false });
+    setNhapKho(khoData || []);
+  };
+
+  const thuLai = async () => {
+    await fetch("/api/pancake/nhap-kho", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    }).catch(() => {});
+    await loadData();
+  };
+
+  const tuNhapTay = async (batchId: string) => {
+    const dong = window.confirm(
+      "Chọn cái này nghĩa là chị sẽ tự nhập kho trên Pancake. App sẽ không nhắc lại mẫu này nữa.",
+    );
+    if (!dong) return;
+    await supabase
+      .from("pancake_stock_ins")
+      .update({
+        status: "skipped",
+        completed_at: new Date().toISOString(),
+        error_message: "Chủ xưởng tự nhập kho trên Pancake",
+      })
+      .eq("batch_id", batchId);
+    await loadData();
   };
 
   useEffect(() => {
@@ -41,24 +169,46 @@ export default function BaoCaoPage() {
   if (!mounted) {
     return (
       <div className="app-shell">
-        <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80dvh' }}>
-          <span style={{ fontSize: 15, color: 'var(--text-secondary)' }}>Đang tải...</span>
+        <div
+          className="page-content"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: "80dvh",
+          }}
+        >
+          <span style={{ fontSize: 15, color: "var(--text-secondary)" }}>
+            Đang tải...
+          </span>
         </div>
       </div>
     );
   }
 
-  if (user?.role !== 'admin') {
+  if (user?.role !== "admin") {
     return (
       <div className="app-shell">
-        <div style={{ padding: 32, textAlign: 'center', color: 'var(--danger)' }}>Không có quyền</div>
+        <div
+          style={{ padding: 32, textAlign: "center", color: "var(--danger)" }}
+        >
+          Không có quyền
+        </div>
         <BottomNav />
       </div>
     );
   }
 
   const { start, end } = getMonthRange(selYear, selMonth);
-  const monthLogs = logs.filter((l: any) => l.log_date >= start && l.log_date <= end);
+  const tongCat = dongCat
+    .filter((d: any) => {
+      const ngay = (d.created_at || "").split("T")[0];
+      return ngay >= start && ngay <= end;
+    })
+    .reduce((t: number, d: any) => t + (d.quantity || 0), 0);
+  const monthLogs = logs.filter(
+    (l: any) => l.log_date >= start && l.log_date <= end,
+  );
   const totalQty = monthLogs.reduce((s: number, l: any) => s + l.quantity, 0);
 
   // Theo danh mục
@@ -70,16 +220,24 @@ export default function BaoCaoPage() {
 
   // Top sản phẩm
   const byProd: Record<string, number> = {};
-  monthLogs.forEach((l: any) => { byProd[l.product_id] = (byProd[l.product_id] || 0) + l.quantity; });
-  const topProds = Object.entries(byProd).sort((a: any, b: any) => b[1] - a[1]).slice(0, 5);
+  monthLogs.forEach((l: any) => {
+    byProd[l.product_id] = (byProd[l.product_id] || 0) + l.quantity;
+  });
+  const topProds = Object.entries(byProd)
+    .sort((a: any, b: any) => b[1] - a[1])
+    .slice(0, 5);
 
   // Theo size
   const bySize: Record<string, number> = {};
-  monthLogs.forEach((l: any) => { bySize[l.size] = (bySize[l.size] || 0) + l.quantity; });
+  monthLogs.forEach((l: any) => {
+    bySize[l.size] = (bySize[l.size] || 0) + l.quantity;
+  });
 
   // Theo màu
   const byColor: Record<string, number> = {};
-  monthLogs.forEach((l: any) => { byColor[l.color] = (byColor[l.color] || 0) + l.quantity; });
+  monthLogs.forEach((l: any) => {
+    byColor[l.color] = (byColor[l.color] || 0) + l.quantity;
+  });
 
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
@@ -88,96 +246,216 @@ export default function BaoCaoPage() {
       <div className="page-content scroll-top-padding">
         <div className="page-header">
           <h1>Báo cáo tháng</h1>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
-            <select value={selMonth} onChange={e => setSelMonth(+e.target.value)}
-              style={{ padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 15, background: '#fff' }}
-              id="sel-month">
-              {months.map(m => <option key={m} value={m}>Tháng {m}</option>)}
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              marginTop: 8,
+              alignItems: "center",
+            }}
+          >
+            <select
+              value={selMonth}
+              onChange={(e) => setSelMonth(+e.target.value)}
+              style={{
+                padding: "8px 12px",
+                border: "1.5px solid var(--border)",
+                borderRadius: 8,
+                fontSize: 15,
+                background: "#fff",
+              }}
+              id="sel-month"
+            >
+              {months.map((m) => (
+                <option key={m} value={m}>
+                  Tháng {m}
+                </option>
+              ))}
             </select>
-            <select value={selYear} onChange={e => setSelYear(+e.target.value)}
-              style={{ padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 15, background: '#fff' }}
-              id="sel-year">
-              {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+            <select
+              value={selYear}
+              onChange={(e) => setSelYear(+e.target.value)}
+              style={{
+                padding: "8px 12px",
+                border: "1.5px solid var(--border)",
+                borderRadius: 8,
+                fontSize: 15,
+                background: "#fff",
+              }}
+              id="sel-year"
+            >
+              {[2024, 2025, 2026, 2027].map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
             </select>
           </div>
         </div>
 
+        <div className="tab-con">
+          <button
+            className={tab === "thang" ? "on" : ""}
+            onClick={() => setTab("thang")}
+          >
+            Tháng
+          </button>
+          <button
+            className={tab === "nhap-kho" ? "on" : ""}
+            onClick={() => setTab("nhap-kho")}
+            id="tab-nhap-kho"
+          >
+            Nhập kho Pancake
+          </button>
+          <button onClick={() => router.push("/nhap-san-luong")}>
+            Nhập SL
+          </button>
+          <button onClick={() => router.push("/lich-su")}>Lịch sử</button>
+        </div>
+
+        {tab === "nhap-kho" && <TabNhapKho dong={nhapKho} onThuLai={thuLai} onTuNhapTay={tuNhapTay} />}
+
+        {tab === "thang" && (
+        <>
         {/* Tổng */}
         <div className="report-stat">
-          <div className="report-stat-label">Tổng sản phẩm tháng {selMonth}/{selYear}</div>
+          <div className="report-stat-label">
+            Tổng sản phẩm tháng {selMonth}/{selYear}
+          </div>
           <div className="report-stat-val">{totalQty} cái</div>
+          <div className="report-row" style={{ marginTop: 10 }}>
+            <span>🧵 Đã may</span>
+            <b>{totalQty} cái</b>
+          </div>
+          <div className="report-row">
+            <span>✂️ Đã cắt</span>
+            <b>{tongCat} cái</b>
+          </div>
         </div>
 
         {/* Theo danh mục */}
         <div className="report-stat">
-          <div className="report-stat-label" style={{ marginBottom: 12, fontWeight: 700 }}>Theo danh mục</div>
-          {Object.entries(byCat).length === 0
-            ? <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Không có dữ liệu</div>
-            : Object.entries(byCat).map(([catId, qty]) => {
+          <div
+            className="report-stat-label"
+            style={{ marginBottom: 12, fontWeight: 700 }}
+          >
+            Theo danh mục
+          </div>
+          {Object.entries(byCat).length === 0 ? (
+            <div style={{ color: "var(--text-secondary)", fontSize: 14 }}>
+              Không có dữ liệu
+            </div>
+          ) : (
+            Object.entries(byCat).map(([catId, qty]) => {
               const cat = categories.find((c: any) => c.id === catId);
               return (
                 <div key={catId} className="report-row">
-                  <span>{cat?.icon} {cat?.name}</span>
+                  <span>
+                    {cat?.icon} {cat?.name}
+                  </span>
                   <b>{qty} cái</b>
                 </div>
               );
             })
-          }
+          )}
         </div>
 
         {/* Top sản phẩm */}
         <div className="report-stat">
-          <div className="report-stat-label" style={{ marginBottom: 12, fontWeight: 700 }}>Top sản phẩm</div>
-          {topProds.length === 0
-            ? <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Không có dữ liệu</div>
-            : topProds.map(([pId, qty], i) => {
+          <div
+            className="report-stat-label"
+            style={{ marginBottom: 12, fontWeight: 700 }}
+          >
+            Top sản phẩm
+          </div>
+          {topProds.length === 0 ? (
+            <div style={{ color: "var(--text-secondary)", fontSize: 14 }}>
+              Không có dữ liệu
+            </div>
+          ) : (
+            topProds.map(([pId, qty], i) => {
               const p = products.find((x: any) => x.id === pId);
               return (
                 <div key={pId} className="report-row">
-                  <span>{i + 1}. {p?.name}</span>
+                  <span>
+                    {i + 1}. {p?.name}
+                  </span>
                   <b>{qty} cái</b>
                 </div>
               );
             })
-          }
+          )}
         </div>
 
         {/* Theo size */}
         <div className="report-stat">
-          <div className="report-stat-label" style={{ marginBottom: 12, fontWeight: 700 }}>Theo size</div>
-          {Object.entries(bySize).length === 0
-            ? <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Không có dữ liệu</div>
-            : Object.entries(bySize).sort((a: any, b: any) => b[1] - a[1]).map(([size, qty]) => (
-              <div key={size} className="report-row">
-                <span>Size {size}</span>
-                <b>{qty} cái</b>
-              </div>
-            ))
-          }
+          <div
+            className="report-stat-label"
+            style={{ marginBottom: 12, fontWeight: 700 }}
+          >
+            Theo size
+          </div>
+          {Object.entries(bySize).length === 0 ? (
+            <div style={{ color: "var(--text-secondary)", fontSize: 14 }}>
+              Không có dữ liệu
+            </div>
+          ) : (
+            Object.entries(bySize)
+              .sort((a: any, b: any) => b[1] - a[1])
+              .map(([size, qty]) => (
+                <div key={size} className="report-row">
+                  <span>Size {size}</span>
+                  <b>{qty} cái</b>
+                </div>
+              ))
+          )}
         </div>
 
         {/* Theo màu */}
         <div className="report-stat">
-          <div className="report-stat-label" style={{ marginBottom: 12, fontWeight: 700 }}>Theo màu</div>
-          {Object.entries(byColor).length === 0
-            ? <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Không có dữ liệu</div>
-            : Object.entries(byColor).sort((a: any, b: any) => b[1] - a[1]).map(([color, qty]) => (
-              <div key={color} className="report-row">
-                <span>{color}</span>
-                <b>{qty} cái</b>
-              </div>
-            ))
-          }
+          <div
+            className="report-stat-label"
+            style={{ marginBottom: 12, fontWeight: 700 }}
+          >
+            Theo màu
+          </div>
+          {Object.entries(byColor).length === 0 ? (
+            <div style={{ color: "var(--text-secondary)", fontSize: 14 }}>
+              Không có dữ liệu
+            </div>
+          ) : (
+            Object.entries(byColor)
+              .sort((a: any, b: any) => b[1] - a[1])
+              .map(([color, qty]) => (
+                <div key={color} className="report-row">
+                  <span>{color}</span>
+                  <b>{qty} cái</b>
+                </div>
+              ))
+          )}
         </div>
 
-        <div style={{ padding: '8px 12px 16px' }}>
-          <button className="btn btn-primary btn-full" id="btn-xuat-excel" style={{ fontSize: 16 }}>
+        <div style={{ padding: "8px 12px 16px" }}>
+          <button
+            className="btn btn-primary btn-full"
+            id="btn-xuat-excel"
+            style={{ fontSize: 16 }}
+          >
             📥 Xuất Excel
           </button>
-          <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', marginTop: 8 }}>
+          <p
+            style={{
+              fontSize: 12,
+              color: "var(--text-secondary)",
+              textAlign: "center",
+              marginTop: 8,
+            }}
+          >
             Xuất Excel định kỳ mỗi tháng
           </p>
         </div>
+        </>
+        )}
       </div>
       <BottomNav />
     </div>
