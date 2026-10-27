@@ -11,17 +11,22 @@ export default function BottomNav() {
   const isActive = (path: string) => pathname.startsWith(path);
   const isAdmin = user?.role === "admin";
 
+  // Thanh dưới của chủ xưởng: Hôm nay · Đơn hàng · Đơn thiếu · Sản phẩm · Báo cáo.
+  // Của thợ: Đơn hàng · Lịch sử. Nhập SL và Lịch sử của chủ xưởng nằm trong tab con
+  // của Báo cáo (mục 11 của thiết kế) — không tab nào bị mất, chỉ đổi chỗ.
   const tabs = [
-    { path: "/don-hang", icon: "📋", label: "Đơn hàng", adminOnly: false },
-    { path: "/san-pham", icon: "🗂️", label: "Sản phẩm", adminOnly: true },
-    // Nhập SL gỡ khỏi app thợ (mục 5b): mọi thứ thợ may xong đều phải gắn với
-    // một đơn, để có đường vào kho Pancake. Chủ xưởng vẫn ghi bù được.
-    { path: "/nhap-san-luong", icon: "✏️", label: "Nhập SL", adminOnly: true },
-    { path: "/lich-su", icon: "🕐", label: "Lịch sử", adminOnly: false },
-    { path: "/bao-cao", icon: "📊", label: "Báo cáo", adminOnly: true },
+    { path: "/hom-nay", icon: "🏠", label: "Hôm nay", cho: "admin" },
+    { path: "/don-hang", icon: "📋", label: "Đơn hàng", cho: "ca-hai" },
+    { path: "/don-thieu", icon: "📑", label: "Đơn thiếu", cho: "admin" },
+    { path: "/san-pham", icon: "🗂️", label: "Sản phẩm", cho: "admin" },
+    { path: "/bao-cao", icon: "📊", label: "Báo cáo", cho: "admin" },
+    { path: "/lich-su", icon: "🕐", label: "Lịch sử", cho: "tho" },
   ];
 
-  const visibleTabs = tabs.filter((t) => !t.adminOnly || isAdmin);
+
+  const visibleTabs = tabs.filter(
+    (t) => t.cho === "ca-hai" || (isAdmin ? t.cho === "admin" : t.cho === "tho"),
+  );
 
   return (
     <nav className="bottom-nav" style={{ justifyContent: "space-around" }}>
