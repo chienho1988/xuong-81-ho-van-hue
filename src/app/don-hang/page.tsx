@@ -824,6 +824,32 @@ export default function DonHangPage() {
     getPushState().then(setPushState);
   }, []);
 
+  // Lớp thứ ba của cơ chế thử lại (mục 5): giờ làm việc thì luôn có người mở app,
+  // nên lớp này thực tế nhanh hơn cron 5 phút. Tối đa một lần mỗi 60 giây.
+  useEffect(() => {
+    let dungLai = false;
+    const xem = async () => {
+      if (dungLai) return;
+      const { data } = await supabase
+        .from("pancake_stock_ins")
+        .select("batch_id")
+        .in("status", ["pending", "error"])
+        .limit(1);
+      if (!data || data.length === 0) return;
+      fetch("/api/pancake/nhap-kho", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }).catch(() => {});
+    };
+    xem();
+    const t = setInterval(xem, 60000);
+    return () => {
+      dungLai = true;
+      clearInterval(t);
+    };
+  }, []);
+
   // Nhớ kiểu xem của thợ trên chính máy họ. Mặc định (chưa chọn lần nào) là gộp.
   useEffect(() => {
     try {

@@ -1,0 +1,68 @@
+# Bộ hẹn giờ cho app Xưởng 81.
+#
+# Dùng GitHub Actions chứ không phải Vercel Cron: gói Hobby của Vercel chỉ chạy
+# được 1 lần/ngày và không bảo đảm đúng giờ, nên không làm được mốc 7h30 và 14h.
+# Repo này là public nên số phút Actions không giới hạn.
+#
+# Giờ viết theo UTC. Việt Nam = UTC+7.
+#
+# CẦN ĐẶT TRONG GitHub → Settings → Secrets and variables → Actions:
+#   APP_URL                  https://xuong-81-ho-van-hue.vercel.app
+#   CRON_SECRET              (giống hệt biến cùng tên trên Vercel)
+#   PANCAKE_WEBHOOK_SECRET   (giống hệt biến cùng tên trên Vercel)
+
+name: Hẹn giờ Xưởng 81
+
+on:
+  schedule:
+    - cron: "30 0 * * *" # 7h30 VN — nhắc buổi sáng
+    - cron: "0 7 * * *" # 14h00 VN — nhắc buổi chiều
+    - cron: "0 19 * * *" # 2h00 VN — đồng bộ danh mục mẫu mã
+    - cron: "0 5 * * *" # 12h00 VN — đánh thức Supabase
+    - cron: "*/5 * * * *" # mỗi 5 phút — xả hàng đợi nhập kho
+  workflow_dispatch:
+    inputs:
+      viec:
+        description: "Chạy tay: nhac-sang | nhac-chieu | dong-bo | keep-alive | nhap-kho"
+        required: true
+        default: nhap-kho
+
+jobs:
+  chay:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gọi route tương ứng
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          WH_SECRET: ${{ secrets.PANCAKE_WEBHOOK_SECRET }}
+          LICH: ${{ github.event.schedule }}
+          VIEC: ${{ github.event.inputs.viec }}
+        run: |
+          set -euo pipefail
+          case "${LICH:-}" in
+            "30 0 * * *")  VIEC=nhac-sang ;;
+            "0 7 * * *")   VIEC=nhac-chieu ;;
+            "0 19 * * *")  VIEC=dong-bo ;;
+            "0 5 * * *")   VIEC=keep-alive ;;
+            "*/5 * * * *") VIEC=nhap-kho ;;
+          esac
+          echo "Việc: $VIEC"
+          case "$VIEC" in
+            nhac-sang)
+              curl -sS -X POST "$APP_URL/api/cron/nhac-nho?buoi=sang" \
+                -H "x-xuong81-secret: $CRON_SECRET" ;;
+            nhac-chieu)
+              curl -sS -X POST "$APP_URL/api/cron/nhac-nho?buoi=chieu" \
+                -H "x-xuong81-secret: $CRON_SECRET" ;;
+            dong-bo)
+              curl -sS -X POST "$APP_URL/api/cron/dong-bo-mau-ma" \
+                -H "x-xuong81-secret: $CRON_SECRET" ;;
+            keep-alive)
+              curl -sS -X POST "$APP_URL/api/cron/keep-alive" \
+                -H "x-xuong81-secret: $CRON_SECRET" ;;
+            nhap-kho)
+              curl -sS -X POST "$APP_URL/api/pancake/nhap-kho" \
+                -H "content-type: application/json" -d '{}' ;;
+          esac
+          echo ""
