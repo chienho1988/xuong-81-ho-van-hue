@@ -121,24 +121,6 @@ function TaoDonContent() {
       });
   };
 
-  if (user?.role !== "admin") {
-    return (
-      <div className="app-shell">
-        <div
-          style={{ padding: 32, textAlign: "center", color: "var(--danger)" }}
-        >
-          Không có quyền truy cập
-        </div>
-        <BottomNav />
-      </div>
-    );
-  }
-
-  const today = new Date().toISOString().split("T")[0];
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
-  const dueDate =
-    dueOpt === "today" ? today : dueOpt === "tomorrow" ? tomorrow : null;
-
   // Dò mẫu mã Pancake theo tên sản phẩm + màu + size. Phần lớn trường hợp chỉ cần
   // bấm xác nhận; để trống thì đơn vẫn tạo bình thường, chỉ là không vào kho.
   useEffect(() => {
@@ -165,6 +147,24 @@ function TaoDonContent() {
       huy = true;
     };
   }, [selProduct, selColor, selSize]);
+
+  if (user?.role !== "admin") {
+    return (
+      <div className="app-shell">
+        <div
+          style={{ padding: 32, textAlign: "center", color: "var(--danger)" }}
+        >
+          Không có quyền truy cập
+        </div>
+        <BottomNav />
+      </div>
+    );
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+  const dueDate =
+    dueOpt === "today" ? today : dueOpt === "tomorrow" ? tomorrow : null;
 
   const handleGuiDon = async () => {
     if (!selProduct || !selSize || !selColor) return;
