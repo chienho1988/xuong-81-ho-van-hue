@@ -12,7 +12,13 @@ import {
   enablePush,
   type PushState,
 } from "@/lib/pushNotifications";
-import { soMayDuoc, soDaMay, kepSoCat } from "@/lib/cat";
+import {
+  soMayDuoc,
+  soDaMay,
+  kepSoCat,
+  tongChuaCat,
+  chiaSoCat,
+} from "@/lib/cat";
 import { gomTheoMauMa, chiaNguocSoLuong, type NhomMauMa } from "@/lib/gopMauMa";
 import { xepNhomHan, type NhomHan } from "@/lib/nhacNho";
 import { ghiSoCat } from "@/lib/supabaseService";
@@ -400,6 +406,9 @@ function NhomCard({
 // cắt làm nhiều đơn liền tay. Đơn gấp xếp đầu, đơn cắt đủ nền xanh.
 function BanCat({
   dons,
+  nhomMauMa,
+  kieuXem,
+  onDoiKieuXem,
   products,
   so,
   setSo,
@@ -407,6 +416,9 @@ function BanCat({
   onThoat,
 }: {
   dons: Order[];
+  nhomMauMa: NhomMauMa[];
+  kieuXem: "don" | "gop";
+  onDoiKieuXem: (k: "don" | "gop") => void;
   products: ProductMap;
   so: Record<string, number>;
   setSo: (v: Record<string, number>) => void;
@@ -419,6 +431,33 @@ function BanCat({
     if (ga !== gb) return ga - gb;
     return (a.due_date || "9999").localeCompare(b.due_date || "9999");
   });
+
+  // Cắt theo mẫu mã: gom mọi đơn cùng mẫu thành một dòng, vì đứng ở bàn cắt thì
+  // cắt một lượt cả xấp chứ không cắt theo từng đơn.
+  const dongGop = nhomMauMa.map((n) => ({
+    khoa: n.khoa,
+    ten: products[n.product_id]?.name || "Sản phẩm đã xoá",
+    phu: `${n.size} · ${n.color} · ${n.soDon} đơn · đã cắt ${n.dons.reduce(
+      (t, d) => t + (d.cut_quantity ?? 0),
+      0,
+    )}`,
+    chuaCat: tongChuaCat(n.dons),
+    gap: n.dons.some((d) => d.priority === "urgent"),
+  }));
+
+  const dongDon = xep.map((o) => ({
+    khoa: o.id,
+    ten: products[o.product_id]?.name || "Sản phẩm đã xoá",
+    phu: `${o.size} · ${o.color}${
+      o.priority === "urgent" ? " · 🔥 gấp" : ""
+    } · đã cắt ${o.cut_quantity ?? 0}`,
+    chuaCat: Math.max(0, (o.quantity ?? 0) - (o.cut_quantity ?? 0)),
+    gap: o.priority === "urgent",
+  }));
+
+  const dong = (kieuXem === "gop" ? dongGop : dongDon).sort((a, b) =>
+    a.gap === b.gap ? 0 : a.gap ? -1 : 1,
+  );
   const tong = Object.values(so).reduce((t, n) => t + (n || 0), 0);
 
   const doi = (id: string, delta: number, toiDa: number) => {
@@ -435,27 +474,43 @@ function BanCat({
         </button>
       </div>
 
-      {xep.map((o) => {
-        const chuaCat = Math.max(0, (o.quantity ?? 0) - (o.cut_quantity ?? 0));
-        const du = chuaCat === 0;
+      <div className="kieu-xem" style={{ marginBottom: 10 }}>
+        <button
+          className={kieuXem === "don" ? "on" : ""}
+          onClick={() => onDoiKieuXem("don")}
+        >
+          Theo đơn
+        </button>
+        <button
+          className={kieuXem === "gop" ? "on" : ""}
+          onClick={() => onDoiKieuXem("gop")}
+        >
+          Gộp theo mẫu mã
+        </button>
+      </div>
+
+      {dong.map((d) => {
+        const du = d.chuaCat === 0;
         return (
-          <div key={o.id} className={`ban-cat-row ${du ? "du" : ""}`}>
+          <div key={d.khoa} className={`ban-cat-row ${du ? "du" : ""}`}>
             <div className="ban-cat-name">
-              <b>{products[o.product_id]?.name || "Sản phẩm đã xoá"}</b>
-              <span>
-                {o.size} · {o.color}
-                {o.priority === "urgent" ? " · 🔥 gấp" : ""} · đã cắt{" "}
-                {o.cut_quantity ?? 0}
-              </span>
+              <b>
+                {d.gap ? "🔥 " : ""}
+                {d.ten}
+              </b>
+              <span>{d.phu}</span>
             </div>
             <div className="ban-cat-stepper">
-              <button onClick={() => doi(o.id, -1, chuaCat)}>−</button>
-              <b>{so[o.id] || 0}</b>
-              <button className="plus" onClick={() => doi(o.id, 1, chuaCat)}>
+              <button onClick={() => doi(d.khoa, -1, d.chuaCat)}>−</button>
+              <b>{so[d.khoa] || 0}</b>
+              <button
+                className="plus"
+                onClick={() => doi(d.khoa, 1, d.chuaCat)}
+              >
                 +
               </button>
             </div>
-            <div className="ban-cat-of">{du ? "đủ" : `/${chuaCat}`}</div>
+            <div className="ban-cat-of">{du ? "đủ" : `/${d.chuaCat}`}</div>
           </div>
         );
       })}
@@ -856,15 +911,9 @@ export default function DonHangPage() {
     };
   }, []);
 
-  // Nhớ kiểu xem của thợ trên chính máy họ. Mặc định (chưa chọn lần nào) là gộp.
-  useEffect(() => {
-    try {
-      const luu = localStorage.getItem("xuong81_kieu_xem");
-      if (luu === "don" || luu === "gop") setKieuXem(luu);
-    } catch {
-      // Không đọc được localStorage thì giữ mặc định.
-    }
-  }, []);
+  // Mở app LẦN NÀO CŨNG vào kiểu Gộp theo mẫu mã (chủ xưởng chốt 28/10): cắt và
+  // may cùng một mẫu một lượt mới nhanh. Đổi sang Theo đơn vẫn được, nhưng chỉ
+  // trong phiên làm việc đó — lần mở sau lại về gộp.
 
   const handleEnablePush = async () => {
     setEnablingPush(true);
@@ -933,14 +982,7 @@ export default function DonHangPage() {
     .reduce((t, o) => t + o.remaining_quantity, 0);
   const nhomMauMa = gomTheoMauMa(pending, homNay);
 
-  const doiKieuXem = (k: "don" | "gop") => {
-    setKieuXem(k);
-    try {
-      localStorage.setItem("xuong81_kieu_xem", k);
-    } catch {
-      // Trình duyệt chặn localStorage thì vẫn dùng được, chỉ không nhớ lựa chọn.
-    }
-  };
+  const doiKieuXem = (k: "don" | "gop") => setKieuXem(k);
 
   const urgentCount = pending.filter((o) => o.priority === "urgent").length;
   const unreadCount = orders.filter(
@@ -1131,11 +1173,23 @@ export default function DonHangPage() {
       return;
     }
     let tong = 0;
-    for (const [id, so] of viec) {
-      const don = orders.find((o) => o.id === id);
-      if (!don) continue;
-      await ghiSoCat(don, so, user?.name || "Chủ xưởng");
-      tong += so;
+    for (const [khoa, so] of viec) {
+      if (kieuXem === "gop") {
+        // Khoá là mẫu mã: chia số vừa cắt về từng đơn trong nhóm, đơn trễ trước.
+        const nhom = nhomMauMa.find((n) => n.khoa === khoa);
+        if (!nhom) continue;
+        for (const phan of chiaSoCat(nhom.dons, so, homNay)) {
+          const don = nhom.dons.find((d) => d.id === phan.order_id);
+          if (!don) continue;
+          await ghiSoCat(don, phan.quantity, user?.name || "Chủ xưởng");
+          tong += phan.quantity;
+        }
+      } else {
+        const don = orders.find((o) => o.id === khoa);
+        if (!don) continue;
+        await ghiSoCat(don, so, user?.name || "Chủ xưởng");
+        tong += so;
+      }
     }
     setBanCatSo({});
     setBanCat(false);
@@ -1391,6 +1445,12 @@ export default function DonHangPage() {
         {activeTab === "pending" && isAdmin && banCat && (
           <BanCat
             dons={pending}
+            nhomMauMa={nhomMauMa}
+            kieuXem={kieuXem}
+            onDoiKieuXem={(k) => {
+              doiKieuXem(k);
+              setBanCatSo({});
+            }}
             products={products}
             so={banCatSo}
             setSo={setBanCatSo}

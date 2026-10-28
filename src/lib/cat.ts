@@ -58,3 +58,48 @@ export function tongChuaCat(dons: Order[]): number {
     0,
   );
 }
+
+export interface PhanChiaCat {
+  order_id: string;
+  quantity: number;
+}
+
+/**
+ * Chia số vừa cắt về từng đơn, khi chủ xưởng cắt theo MẪU MÃ chứ không theo đơn.
+ *
+ * Cùng thứ tự ưu tiên với lúc thợ báo xong ở chế độ gộp: đơn trễ hạn trước, rồi
+ * đơn hạn gần nhất, rồi đơn tạo sớm hơn. Mỗi đơn chỉ nhận phần CHƯA CẮT của nó.
+ */
+export function chiaSoCat(
+  dons: Order[],
+  soCat: number,
+  homNay: string,
+): PhanChiaCat[] {
+  const treHan = (d: Order) => !!d.due_date && d.due_date < homNay;
+
+  const xep = [...dons].sort((a, b) => {
+    const at = treHan(a);
+    const bt = treHan(b);
+    if (at !== bt) return at ? -1 : 1;
+    if (a.due_date !== b.due_date) {
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+      return a.due_date < b.due_date ? -1 : 1;
+    }
+    return (a.created_at || "") < (b.created_at || "") ? -1 : 1;
+  });
+
+  const ketQua: PhanChiaCat[] = [];
+  let conLai = soCat;
+
+  for (const don of xep) {
+    if (conLai <= 0) break;
+    const chuaCat = Math.max(0, (don.quantity ?? 0) - (don.cut_quantity ?? 0));
+    const nhan = Math.min(conLai, chuaCat);
+    if (nhan <= 0) continue;
+    ketQua.push({ order_id: don.id, quantity: nhan });
+    conLai -= nhan;
+  }
+
+  return ketQua;
+}

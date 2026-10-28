@@ -78,13 +78,28 @@ export async function getProducts(): Promise<Product[]> {
   if (error) throw error;
   const products = data || [];
 
-  // Gắn variants cho từng product
-  for (const product of products) {
-    const { data: variants } = await supabase
+  // Lấy TẤT CẢ phân loại trong MỘT lượt rồi gom trong bộ nhớ.
+  // Trước đây mỗi sản phẩm một truy vấn riêng: 7 sản phẩm thì không sao, nhưng từ
+  // 28/10 có thêm 49 sản phẩm của Xưởng nhà làm nên thành 56 lượt gọi nối đuôi —
+  // màn Tạo đơn đứng hình cả chục giây, chủ xưởng tưởng app hỏng.
+  let tatCaVariants: any[] = [];
+  for (let tu = 0; ; tu += 1000) {
+    const { data: lo } = await supabase
       .from("product_variants")
       .select("*")
-      .eq("product_id", product.id);
-    product.variants = variants || [];
+      .range(tu, tu + 999);
+    if (!lo || !lo.length) break;
+    tatCaVariants = tatCaVariants.concat(lo);
+    if (lo.length < 1000) break;
+  }
+
+  const theoSanPham: Record<string, ProductVariant[]> = {};
+  for (const v of tatCaVariants) {
+    (theoSanPham[v.product_id] ||= []).push(v);
+  }
+
+  for (const product of products) {
+    product.variants = theoSanPham[product.id] || [];
     product.colors = product.colors || [];
     product.sizes = product.sizes || [];
   }
