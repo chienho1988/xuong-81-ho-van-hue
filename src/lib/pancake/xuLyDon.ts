@@ -9,7 +9,11 @@ import {
   chuanHoaDon,
   type MauMaPancake,
 } from "./api.ts";
-import { locMauMaCanMay, type MauMaCanXet } from "./quyetDinh.ts";
+import {
+  locMauMaCanMay,
+  soLuongTheoMauMa,
+  type MauMaCanXet,
+} from "./quyetDinh.ts";
 import { tinhSoCanMay } from "./math.ts";
 
 /** Hạn may mặc định: hôm nay + 2 ngày (chủ xưởng chốt). */
@@ -82,10 +86,38 @@ export async function layTraCuu(variationIds: string[]): Promise<{
 export async function baoDamSanPham(mauMa: MauMaPancake): Promise<string> {
   const { data: daCo } = await supabaseServer
     .from("products")
-    .select("id")
+    .select("id,colors,sizes,color_images,main_image_url")
     .eq("pancake_product_id", mauMa.product_id)
     .limit(1);
-  if (daCo && daCo.length) return daCo[0].id;
+
+  if (daCo && daCo.length) {
+    // Sản phẩm đã có, nhưng đây có thể là MÀU hoặc SIZE mới của nó. Phải gộp vào,
+    // nếu không thì đơn màu thứ hai hiện ảnh của màu thứ nhất (lỗi thật 28/10:
+    // váy V38 màu Beo hiện ảnh màu Loang).
+    const cu = daCo[0] as any;
+    const mau: string[] = cu.colors ?? [];
+    const size: string[] = cu.sizes ?? [];
+    const anhTheoMau: Record<string, string> = cu.color_images ?? {};
+
+    const themMau = mauMa.color && !mau.includes(mauMa.color);
+    const themSize = mauMa.size && !size.includes(mauMa.size);
+    const themAnh =
+      mauMa.color && mauMa.image_url && !anhTheoMau[mauMa.color];
+
+    if (themMau || themSize || themAnh) {
+      await supabaseServer
+        .from("products")
+        .update({
+          colors: themMau ? [...mau, mauMa.color] : mau,
+          sizes: themSize ? [...size, mauMa.size] : size,
+          color_images: themAnh
+            ? { ...anhTheoMau, [mauMa.color]: mauMa.image_url }
+            : anhTheoMau,
+        })
+        .eq("id", cu.id);
+    }
+    return cu.id;
+  }
 
   // Danh mục theo đúng tên Pancake để chủ xưởng nhìn là nhận ra.
   const tenDanhMuc = mauMa.category_name ?? "Từ Pancake";
@@ -129,6 +161,8 @@ export async function baoDamSanPham(mauMa: MauMaPancake): Promise<string> {
     description: "",
     colors: mauMa.color ? [mauMa.color] : [],
     sizes: mauMa.size ? [mauMa.size] : [],
+    color_images:
+      mauMa.color && mauMa.image_url ? { [mauMa.color]: mauMa.image_url } : {},
     active: true,
     source: "pancake",
     pancake_product_id: mauMa.product_id,
@@ -233,6 +267,7 @@ export async function xuLyMotEvent(
 
     const { traCuu, dayDu } = await layTraCuu(Array.from(new Set(ids)));
     const { canXet, boQua } = locMauMaCanMay(don, traCuu);
+    const soLuongDon = soLuongTheoMauMa(don);
     ketQua.boQua = boQua.length;
 
     // Đơn sửa lại: cập nhật mã vận đơn và trạng thái cho lệnh may đã tạo trước đó.
@@ -270,6 +305,7 @@ export async function xuLyMotEvent(
         remainQuantity,
         dangChoMay,
         dangChoNhapKho,
+        soLuongDonNay: soLuongDon[variationId] ?? 0,
       });
 
       // Không tự xoá lệnh may — thợ có thể đã may rồi. Chỉ gắn cờ cho chủ xưởng

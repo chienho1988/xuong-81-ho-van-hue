@@ -79,3 +79,20 @@ export function locMauMaCanMay(
 
   return { canXet, boQua };
 }
+
+/**
+ * Số cái của từng mẫu mã trong CHÍNH đơn này.
+ *
+ * Dùng làm trần cho số lệnh may: đơn cần mấy cái thì may bấy nhiêu, không nhìn
+ * tồn âm của cả shop mà may bù hết (lỗi thật ngày 28/10, đơn #67645).
+ */
+export function soLuongTheoMauMa(don: DonPancake): Record<string, number> {
+  const items = Array.isArray(don?.items) ? don.items : [];
+  const theo: Record<string, number> = {};
+  for (const dong of items) {
+    const id = dong?.variation_id;
+    if (!id) continue;
+    theo[id] = (theo[id] ?? 0) + (dong.quantity ?? 0);
+  }
+  return theo;
+}

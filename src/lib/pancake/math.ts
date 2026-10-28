@@ -17,6 +17,14 @@ export interface SoLieuMauMa {
    * bấm Xong và lúc phiếu nhập kho vào được, app sẽ đẻ thêm một lệnh may trùng.
    */
   dangChoNhapKho: number;
+  /**
+   * Số cái mẫu mã này trong CHÍNH đơn đang xử lý.
+   *
+   * Trần cứng: không bao giờ may cho một đơn nhiều hơn số đơn đó cần. Thiếu trần
+   * này thì một đơn cần 1 cái mà tồn cả shop đang −8 sẽ ra lệnh may 8 — lỗi thật
+   * gặp ngày 28/10 với đơn #67645.
+   */
+  soLuongDonNay: number;
 }
 
 export interface KetQuaCanMay {
@@ -31,8 +39,13 @@ export function tinhSoCanMay(s: SoLieuMauMa): KetQuaCanMay {
   const daLoLieu = s.dangChoMay + s.dangChoNhapKho;
   const chenh = thieuHienTai - daLoLieu;
 
+  // Hai trần: phần cả shop còn thiếu mà chưa ai lo, và số chính đơn này cần.
+  const theoShop = Math.max(0, chenh);
+  const canMay = Math.min(theoShop, Math.max(0, s.soLuongDonNay));
+
   return {
-    canMay: Math.max(0, chenh),
+    canMay,
+    // "May dư" vẫn tính theo toàn shop, vì nó nói về tồn kho chứ không về một đơn.
     mayDu: Math.max(0, -chenh),
   };
 }
