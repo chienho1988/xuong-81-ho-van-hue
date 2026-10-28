@@ -370,3 +370,30 @@ D) CHỐNG MẠO MẪU MÃ — gửi `variation_id: "MAU-MA-BIA-DAT"` trong body
    mang mẫu mã THẬT lấy từ đơn (5013d4f3-…), không phải chuỗi bịa.
 
 Đã xoá sạch dữ liệu test, bảng khoá cũng dọn. Đơn về lại 53.
+
+=== HAI LỖI PHÁT HIỆN KHI CHẠY THẬT (28/10/2026) ===
+Chủ xưởng soi đơn #67645 (khách Chi Nguyen) và bắt được hai lỗi mà cả test lẫn vòng
+soát độc lập đều không thấy, vì chúng chỉ lộ ra với dữ liệu thật của shop.
+
+LỖI 1 — may thừa gấp nhiều lần.
+Đơn chỉ cần 1 cái V38-LOANG-M và 1 cái V38-BEO-M, nhưng app ra lệnh may 8 và 4.
+Nguyên nhân: công thức ở mục 4 của spec lấy `thiếu = max(0, −tồn_toàn_shop)`. Tồn
+V38-LOANG-M đang −8 vì tích luỹ từ nhiều đơn (và có thể cả do tồn trôi lâu ngày).
+Quy tắc "tổng lệnh may = số đang thiếu" đúng ở mức toàn shop nhưng SAI ở mức MỘT đơn.
+Sửa: thêm trần cứng `soLuongDonNay` vào `tinhSoCanMay` —
+  canMay = min( max(0, thiếu − đã_lo_liệu), số cái mẫu mã đó trong chính đơn này ).
+Vế đã_lo_liệu giữ nguyên nên vẫn không đẻ lệnh trùng giữa các đơn.
+Thêm `soLuongTheoMauMa()` ở quyetDinh.ts, cộng dồn khi một mẫu mã nằm nhiều dòng.
+
+LỖI 2 — màu thứ hai hiện ảnh của màu thứ nhất.
+`baoDamSanPham` tạo dòng `products` một lần với màu/size/ảnh của mẫu mã ĐẦU TIÊN gặp
+rồi không bao giờ cập nhật. Nên váy V38 màu Beo hiện ảnh màu Loang.
+Sửa: sản phẩm đã có thì gộp thêm màu và size mới, lưu ảnh riêng từng màu vào
+`color_images` — đúng cơ chế `imageForOrder` của thẻ đơn vẫn dùng.
+
+ĐÃ KIỂM LẠI trên chính đơn #67645: xoá 2 lệnh may sai và sản phẩm đã tạo, cho xử lý
+lại event → ra đúng 1 cái Loang + 1 cái Beo, sản phẩm V38 có colors ["Loang","Beo"]
+và 2 ảnh khác nhau theo màu. Tổng test 58/58 xanh.
+
+BÀI HỌC: số âm của Pancake là tồn tích luỹ của CẢ SHOP, không phải nhu cầu của một
+đơn. Mọi quy tắc tính theo tồn phải có trần theo đơn.
