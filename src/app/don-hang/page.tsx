@@ -414,6 +414,7 @@ function BanCat({
   setSo,
   onLuu,
   onThoat,
+  onImageClick,
 }: {
   dons: Order[];
   nhomMauMa: NhomMauMa[];
@@ -424,6 +425,7 @@ function BanCat({
   setSo: (v: Record<string, number>) => void;
   onLuu: () => void;
   onThoat: () => void;
+  onImageClick: (img: string) => void;
 }) {
   const xep = [...dons].sort((a, b) => {
     const ga = a.priority === "urgent" ? 0 : 1;
@@ -437,6 +439,9 @@ function BanCat({
   const dongGop = nhomMauMa.map((n) => ({
     khoa: n.khoa,
     ten: products[n.product_id]?.name || "Sản phẩm đã xoá",
+    anh: imageForOrder(products[n.product_id], n.color),
+    icon: products[n.product_id]?.icon,
+    mauNen: products[n.product_id]?.color,
     phu: `${n.size} · ${n.color} · ${n.soDon} đơn · đã cắt ${n.dons.reduce(
       (t, d) => t + (d.cut_quantity ?? 0),
       0,
@@ -448,6 +453,9 @@ function BanCat({
   const dongDon = xep.map((o) => ({
     khoa: o.id,
     ten: products[o.product_id]?.name || "Sản phẩm đã xoá",
+    anh: imageForOrder(products[o.product_id], o.color),
+    icon: products[o.product_id]?.icon,
+    mauNen: products[o.product_id]?.color,
     phu: `${o.size} · ${o.color}${
       o.priority === "urgent" ? " · 🔥 gấp" : ""
     } · đã cắt ${o.cut_quantity ?? 0}`,
@@ -493,6 +501,14 @@ function BanCat({
         const du = d.chuaCat === 0;
         return (
           <div key={d.khoa} className={`ban-cat-row ${du ? "du" : ""}`}>
+            <div className="ban-cat-thumb">
+              <ProductThumb
+                icon={d.icon}
+                color={d.mauNen}
+                image={d.anh}
+                onImageClick={onImageClick}
+              />
+            </div>
             <div className="ban-cat-name">
               <b>
                 {d.gap ? "🔥 " : ""}
@@ -1455,6 +1471,7 @@ export default function DonHangPage() {
             so={banCatSo}
             setSo={setBanCatSo}
             onLuu={luuBanCat}
+            onImageClick={(img) => setLightbox(img)}
             onThoat={() => {
               setBanCat(false);
               setBanCatSo({});
