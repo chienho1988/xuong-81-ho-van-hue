@@ -175,7 +175,9 @@ async function demDangChoNhapKho(variationId: string): Promise<number> {
     .from("pancake_stock_ins")
     .select("quantity")
     .eq("variation_id", variationId)
-    .in("status", ["pending", "error", "skipped"]);
+    // 'sending' = đang gửi sang Pancake. Thiếu nó thì trong lúc một lượt đang
+    // gửi, luồng khác tưởng chưa ai lo và đẻ thêm lệnh may.
+    .in("status", ["pending", "sending", "error", "skipped"]);
   return (data ?? []).reduce((t, s: any) => t + (s.quantity ?? 0), 0);
 }
 
@@ -210,11 +212,15 @@ export async function xuLyMotEvent(
 ): Promise<KetQuaXuLy> {
   const ketQua: KetQuaXuLy = { taoMoi: 0, boQua: 0, mayDu: 0 };
 
+  // Giành event: chỉ một luồng được xử lý nó. Trước bản vá 28/10, webhook bắn
+  // hai lần hoặc cron chạy chồng là hai luồng cùng tính "chưa ai lo" rồi cùng tạo
+  // lệnh may — đúng điều spec gọi là thất bại tuyệt đối.
   const { data: ev } = await supabaseServer
     .from("pancake_webhook_events")
-    .select("*")
+    .update({ processed_at: new Date().toISOString() })
     .eq("id", eventId)
-    .limit(1);
+    .is("processed_at", null)
+    .select();
 
   const event = ev?.[0];
   if (!event) return ketQua;
@@ -253,20 +259,35 @@ export async function xuLyMotEvent(
         demDangChoNhapKho(variationId),
       ]);
 
+      // Không đọc được tồn thì BỎ QUA mẫu mã này, để lượt sau tính lại. Coi như
+      // tồn 0 là lệnh may biến mất im lặng.
+      if (remainQuantity === null) {
+        ketQua.boQua++;
+        continue;
+      }
+
       const { canMay, mayDu } = tinhSoCanMay({
         remainQuantity,
         dangChoMay,
         dangChoNhapKho,
       });
 
+      // Không tự xoá lệnh may — thợ có thể đã may rồi. Chỉ gắn cờ cho chủ xưởng
+      // tự quyết, và GỠ cờ khi đơn Pancake được sửa lại cho đủ.
       if (mayDu > 0) {
         ketQua.mayDu += mayDu;
-        // Không tự xoá lệnh may — thợ có thể đã may rồi. Gắn cờ cho chủ xưởng tự quyết.
         await supabaseServer
           .from("orders")
           .update({ surplus_flag: true })
           .eq("pancake_variation_id", variationId)
           .eq("status", "pending");
+      } else {
+        await supabaseServer
+          .from("orders")
+          .update({ surplus_flag: false })
+          .eq("pancake_variation_id", variationId)
+          .eq("status", "pending")
+          .eq("surplus_flag", true);
       }
 
       if (canMay <= 0) continue;
@@ -310,14 +331,22 @@ export async function xuLyMotEvent(
 
     await supabaseServer
       .from("pancake_webhook_events")
-      .update({ processed_at: new Date().toISOString(), error: null })
+      .update({ error: null })
       .eq("id", eventId);
   } catch (e: any) {
+    const loi = String(e?.message ?? e);
+    // Lỗi TẠM THỜI (Pancake chập chờn, mạng hỏng) thì trả event về chưa-xử-lý để
+    // lượt sau nhặt lại. Đánh dấu xong luôn là mất đơn vĩnh viễn, vì lượt đối
+    // chiếu đêm bỏ qua event trùng khoá.
+    const tamThoi =
+      /Pancake 5\d\d|fetch failed|timeout|ETIMEDOUT|ECONNRESET|network/i.test(
+        loi,
+      );
     await supabaseServer
       .from("pancake_webhook_events")
       .update({
-        processed_at: new Date().toISOString(),
-        error: String(e?.message ?? e).slice(0, 1000),
+        processed_at: tamThoi ? null : new Date().toISOString(),
+        error: loi.slice(0, 1000),
       })
       .eq("id", eventId);
   }

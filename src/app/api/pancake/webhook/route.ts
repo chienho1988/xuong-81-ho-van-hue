@@ -16,7 +16,15 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     const biMat = process.env.PANCAKE_WEBHOOK_SECRET;
-    if (biMat && req.headers.get("x-xuong81-secret") !== biMat) {
+    // Chưa đặt mã bí mật là lỗi cấu hình phía mình — KHÔNG được vì thế mà cho qua,
+    // vì khi đó ai biết đường dẫn cũng nạp được đơn giả vào app.
+    if (!biMat) {
+      return Response.json(
+        { ok: false, loi: "server chua dat PANCAKE_WEBHOOK_SECRET" },
+        { status: 500 },
+      );
+    }
+    if (req.headers.get("x-xuong81-secret") !== biMat) {
       return Response.json(
         { ok: false, loi: "sai ma bi mat" },
         { status: 401 },
@@ -57,7 +65,7 @@ export async function POST(req: Request) {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-xuong81-secret": biMat ?? "",
+          "x-xuong81-secret": biMat,
         },
         body: JSON.stringify({}),
       }).catch(() => {});

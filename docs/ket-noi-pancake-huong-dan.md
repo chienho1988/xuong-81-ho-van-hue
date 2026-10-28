@@ -7,20 +7,27 @@ Ba việc dưới đây máy của người làm không tự làm được, vì 
 
 ---
 
-## 1. Chạy SQL trên Supabase — ĐÃ XONG 27/10/2026
+## 1. Chạy SQL trên Supabase
 
-File `supabase-pancake.sql`, dán vào Supabase → SQL Editor → Run.
-Kiểm lại bất cứ lúc nào: `node scripts/kiem-tra-migration.mjs`
+- `supabase-pancake.sql` — ĐÃ CHẠY 27/10/2026.
+- **`supabase-pancake-sua.sql` — CHƯA CHẠY, phải chạy trước khi bật thật.**
+
+File thứ hai là bản vá sau vòng soát độc lập: thêm khoá chống hai luồng cùng gọi
+Pancake và ràng buộc "một dòng sản lượng chỉ vào kho đúng một lần". **Chưa chạy nó
+thì phần đẩy hàng sang Pancake sẽ không chạy** (app cố tình dừng chứ không liều, để
+khỏi nhập kho hai lần).
+
+Kiểm bất cứ lúc nào: `node scripts/kiem-tra-migration.mjs`
 
 ## 2. Điền Webhook bên Pancake
 
 Vào Pancake POS → **Cấu hình → Cấu hình ứng dụng → Webhook/API**, thêm một webhook:
 
-| Ô           | Điền                                                              |
-| ----------- | ----------------------------------------------------------------- |
-| Loại dữ liệu | `orders`                                                          |
-| URL         | `https://xuong-81-ho-van-hue.vercel.app/api/pancake/webhook`      |
-| Headers     | `x-xuong81-secret: <giá trị PANCAKE_WEBHOOK_SECRET trong .env.local>` |
+| Ô            | Điền                                                                  |
+| ------------ | --------------------------------------------------------------------- |
+| Loại dữ liệu | `orders`                                                              |
+| URL          | `https://xuong-81-ho-van-hue.vercel.app/api/pancake/webhook`          |
+| Headers      | `x-xuong81-secret: <giá trị PANCAKE_WEBHOOK_SECRET trong .env.local>` |
 
 Lưu ý: nếu URL trả lỗi, **Pancake tự tắt webhook của shop**. App luôn trả 200 kể cả
 khi payload méo, chính là để tránh chuyện đó. Ngoài ra mỗi đêm còn một lượt đối chiếu
@@ -30,11 +37,11 @@ lại đơn 24 giờ qua, nên webhook hỏng cũng không mất đơn.
 
 ### Trên Vercel (Settings → Environment Variables → Production)
 
-| Tên                      | Giá trị                                  |
-| ------------------------ | ---------------------------------------- |
-| `PANCAKE_API_KEY`        | khoá API của shop                        |
-| `PANCAKE_WEBHOOK_SECRET` | chuỗi bí mật, giống hệt ô Headers ở trên |
-| `CRON_SECRET`            | chuỗi bí mật cho bộ hẹn giờ              |
+| Tên                      | Giá trị                                      |
+| ------------------------ | -------------------------------------------- |
+| `PANCAKE_API_KEY`        | khoá API của shop                            |
+| `PANCAKE_WEBHOOK_SECRET` | chuỗi bí mật, giống hệt ô Headers ở trên     |
+| `CRON_SECRET`            | chuỗi bí mật cho bộ hẹn giờ                  |
 | `PANCAKE_DRY_RUN`        | `1` khi còn muốn chạy thử · `0` để chạy thật |
 
 Lấy đúng giá trị trong `.env.local` ở máy. Đặt bằng bash, **không dùng PowerShell**
@@ -48,11 +55,11 @@ printf '%s' 'gia-tri' | vercel env add PANCAKE_API_KEY production
 
 ### Trên GitHub (Settings → Secrets and variables → Actions)
 
-| Tên                      | Giá trị                                        |
-| ------------------------ | ---------------------------------------------- |
-| `APP_URL`                | `https://xuong-81-ho-van-hue.vercel.app`       |
-| `CRON_SECRET`            | giống hệt trên Vercel                          |
-| `PANCAKE_WEBHOOK_SECRET` | giống hệt trên Vercel                          |
+| Tên                      | Giá trị                                  |
+| ------------------------ | ---------------------------------------- |
+| `APP_URL`                | `https://xuong-81-ho-van-hue.vercel.app` |
+| `CRON_SECRET`            | giống hệt trên Vercel                    |
+| `PANCAKE_WEBHOOK_SECRET` | giống hệt trên Vercel                    |
 
 ---
 

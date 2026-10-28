@@ -129,9 +129,15 @@ export async function layMotTrangMauMa(
  * Tồn hiện tại của mẫu mã tại kho Khohang 81, lấy tươi từ API.
  * Số âm chính là số đang thiếu — Pancake trừ tồn ngay khi đơn được tạo.
  */
-export async function layTonKhoTuoi(variationId: string): Promise<number> {
+export async function layTonKhoTuoi(
+  variationId: string,
+): Promise<number | null> {
   const ds = await layMauMa([variationId]);
-  return ds[0]?.remain_quantity ?? 0;
+  const v = ds[0];
+  // null = KHÔNG ĐỌC ĐƯỢC, khác hẳn 0 = không thiếu. Trả 0 ở đây thì lệnh may
+  // biến mất im lặng mỗi khi Pancake chập chờn.
+  if (!v || typeof v.remain_quantity !== "number") return null;
+  return v.remain_quantity;
 }
 
 export async function layDonHang(

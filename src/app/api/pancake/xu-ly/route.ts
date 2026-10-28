@@ -12,7 +12,7 @@ export const maxDuration = 60;
 
 export async function POST(req: Request) {
   const biMat = process.env.PANCAKE_WEBHOOK_SECRET;
-  if (biMat && req.headers.get("x-xuong81-secret") !== biMat) {
+  if (!biMat || req.headers.get("x-xuong81-secret") !== biMat) {
     return Response.json({ ok: false, loi: "sai ma bi mat" }, { status: 401 });
   }
 

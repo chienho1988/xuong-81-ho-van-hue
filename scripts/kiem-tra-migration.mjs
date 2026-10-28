@@ -39,6 +39,8 @@ const bangMoi = [
   "pancake_stock_ins",
   "pancake_stock_in_logs",
   "cutting_logs",
+  // Bản vá 28/10: khoá chống hai luồng cùng gọi Pancake.
+  "pancake_locks",
 ];
 
 const cotMoi = [
@@ -48,6 +50,7 @@ const cotMoi = [
   ["orders", "surplus_flag"],
   ["products", "source"],
   ["products", "pancake_product_id"],
+  ["pancake_stock_ins", "claimed_at"],
 ];
 
 let thieu = 0;
@@ -74,7 +77,7 @@ for (const [bang, cot] of cotMoi) {
 
 if (thieu > 0) {
   console.log(
-    `\n>>> Còn thiếu ${thieu} thứ. Dán supabase-pancake.sql vào Supabase SQL Editor rồi chạy lại.`,
+    `\n>>> Còn thiếu ${thieu} thứ. Dán supabase-pancake.sql VÀ supabase-pancake-sua.sql vào Supabase SQL Editor rồi chạy lại.`,
   );
   process.exit(1);
 }
