@@ -303,6 +303,7 @@ function TienDoCat({ order }: { order: Order }) {
 function NhomCard({
   nhom,
   products,
+  isAdmin,
   moRong,
   onMoRong,
   onXong,
@@ -310,6 +311,7 @@ function NhomCard({
 }: {
   nhom: NhomMauMa;
   products: ProductMap;
+  isAdmin: boolean;
   moRong: boolean;
   onMoRong: () => void;
   onXong: (n: NhomMauMa) => void;
@@ -368,20 +370,24 @@ function NhomCard({
       )}
 
       <div className="order-actions">
-        <button
-          className="btn btn-success"
-          style={{ flex: 2, minHeight: 46, fontSize: 15.5 }}
-          onClick={() => onXong(nhom)}
-        >
-          ✓ Báo xong
-        </button>
+        {/* Chủ xưởng không báo xong — việc đó của thợ. Xem gộp chỉ để biết
+            mẫu nào tổng bao nhiêu cái, tiện lúc đứng cắt. */}
+        {!isAdmin && (
+          <button
+            className="btn btn-success"
+            style={{ flex: 2, minHeight: 46, fontSize: 15.5 }}
+            onClick={() => onXong(nhom)}
+          >
+            ✓ Báo xong
+          </button>
+        )}
         {nhom.soDon > 1 && (
           <button
             className="btn btn-outline"
             style={{ flex: 1, minHeight: 46, fontSize: 14 }}
             onClick={onMoRong}
           >
-            {moRong ? "Thu gọn" : "Xem đơn"}
+            {moRong ? "Thu gọn" : `Xem ${nhom.soDon} đơn`}
           </button>
         )}
       </div>
@@ -1396,8 +1402,9 @@ export default function DonHangPage() {
           />
         )}
         {/* ── Dải tổng + chọn kiểu xem (app thợ) ── */}
-        {activeTab === "pending" && !isAdmin && pending.length > 0 && (
+        {activeTab === "pending" && pending.length > 0 && (
           <>
+            {!isAdmin && (
             <div className="tong-can-may">
               <div className="tong-label">TỔNG ĐANG CẦN MAY</div>
               <div className="tong-so">
@@ -1419,6 +1426,7 @@ export default function DonHangPage() {
                 </div>
               </div>
             </div>
+            )}
             <div className="kieu-xem">
               <button
                 className={kieuXem === "don" ? "on" : ""}
@@ -1447,11 +1455,12 @@ export default function DonHangPage() {
                 ? "Không có đơn nào đang chờ!"
                 : "Không có đơn nào! Nghỉ ngơi chút 😊"}
             </div>
-          ) : !isAdmin && kieuXem === "gop" ? (
+          ) : kieuXem === "gop" ? (
             nhomMauMa.map((n) => (
               <NhomCard
                 key={n.khoa}
                 nhom={n}
+                isAdmin={isAdmin}
                 products={products}
                 moRong={nhomMoRong === n.khoa}
                 onMoRong={() =>

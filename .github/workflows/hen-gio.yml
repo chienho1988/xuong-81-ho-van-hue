@@ -66,6 +66,10 @@ jobs:
                 TRANG=$(echo "$KQ" | sed -n 's/.*"trangKeTiep":\([0-9][0-9]*\).*/\1/p')
                 [ -z "$TRANG" ] && break
               done
+              # Dua toan bo san pham cua Xuong nha lam vao app.
+              curl -sS -X POST "$APP_URL/api/cron/dong-bo-san-pham" \
+                -H "x-xuong81-secret: $CRON_SECRET"
+              echo ""
               # Doi chieu don 24h qua: webhook khong phai duong duy nhat.
               curl -sS -X POST "$APP_URL/api/cron/doi-chieu-don" \
                 -H "x-xuong81-secret: $CRON_SECRET" ;;
