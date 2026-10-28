@@ -21,17 +21,17 @@ gỡ ra phải lọc theo tên file.
 
 ## Pre-flight: đối chiếu Interfaces giữa các task
 
-| Produces | Consumes | Kết quả |
-| --- | --- | --- |
-| T1 `tinhSoCanMay` | T7 | khớp |
-| T2 `chiaNguocSoLuong` | T3, T10 | khớp |
-| T3 `gomTheoMauMa` | T10 | khớp |
-| T3 `tests/unit/_donMau.ts` | T12, T15 | khớp |
-| T4 cột/bảng mới | T7, T8, T9, T11, T12, T13, T14 | khớp; khoá chống trùng là `batch_id` (spec 9a) chứ không phải `production_log_id` (spec 5) — 9a là bản sau, theo 9a |
-| T5 `taoPhieuNhapKho`, `layMauMa`, `layTonKhoTuoi` | T7, T8 | khớp |
-| T8 `xepHangNhapKho` | T10 | khớp |
-| T9 `tongChuaCat`, `soMayDuoc` | T11 | khớp |
-| T15 `xepNhomHan` | T10 Step 1 | XUNG ĐỘT — T10 chạy trước T15 |
+| Produces                                          | Consumes                       | Kết quả                                                                                                             |
+| ------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| T1 `tinhSoCanMay`                                 | T7                             | khớp                                                                                                                |
+| T2 `chiaNguocSoLuong`                             | T3, T10                        | khớp                                                                                                                |
+| T3 `gomTheoMauMa`                                 | T10                            | khớp                                                                                                                |
+| T3 `tests/unit/_donMau.ts`                        | T12, T15                       | khớp                                                                                                                |
+| T4 cột/bảng mới                                   | T7, T8, T9, T11, T12, T13, T14 | khớp; khoá chống trùng là `batch_id` (spec 9a) chứ không phải `production_log_id` (spec 5) — 9a là bản sau, theo 9a |
+| T5 `taoPhieuNhapKho`, `layMauMa`, `layTonKhoTuoi` | T7, T8                         | khớp                                                                                                                |
+| T8 `xepHangNhapKho`                               | T10                            | khớp                                                                                                                |
+| T9 `tongChuaCat`, `soMayDuoc`                     | T11                            | khớp                                                                                                                |
+| T15 `xepNhomHan`                                  | T10 Step 1                     | XUNG ĐỘT — T10 chạy trước T15                                                                                       |
 
 Pre-flight: Ruling: `xepNhomHan` viết ở Task 10 trong `src/lib/nhacNho.ts`, Task 15
 dùng lại thay vì viết mới. Plan đã lường trước ở Task 10 Step 1. Cost if wrong:
@@ -286,6 +286,7 @@ Người soát độc lập (ngữ cảnh mới, Sonnet) trả về 8 phát hi�
 người dùng chịu, không theo nhãn của người soát:
 
 NGHIÊM TRỌNG — vào đợt sửa:
+
 1. `xaHangDoi` không giành việc nguyên tử trước khi gọi Pancake. Hai luồng xả (cron 5
    phút + poll 60s trong app + lượt gọi ngay khi thợ bấm Xong) cùng thấy một dòng
    pending → cùng POST /purchases → tồn Pancake +10 thay vì +5. Đây đúng là điều mục 2
@@ -301,14 +302,11 @@ NGHIÊM TRỌNG — vào đợt sửa:
    nhau vài giây → hai lượt cùng thấy dangChoMay=0 → mỗi lượt tạo 5 → 10 cái cho mức
    thiếu 5. Đúng điều spec gọi là "tạo trùng lệnh may".
 
-QUAN TRỌNG — vào đợt sửa:
-5. Lỗi TẠM THỜI (Pancake 5xx/timeout) cũng bị đánh dấu processed_at → đơn mất vĩnh viễn,
-   lượt đối chiếu đêm không nạp lại vì trùng khoá.
-6. `layTonKhoTuoi` trả 0 khi không đọc được → coi như không thiếu → lệnh may biến mất im.
-7. `if (biMat && ...)` — chưa đặt PANCAKE_WEBHOOK_SECRET thì bỏ luôn kiểm tra.
-8. `surplus_flag` bật cho MỌI lệnh pending của mẫu mã và không bao giờ gỡ.
+QUAN TRỌNG — vào đợt sửa: 5. Lỗi TẠM THỜI (Pancake 5xx/timeout) cũng bị đánh dấu processed_at → đơn mất vĩnh viễn,
+lượt đối chiếu đêm không nạp lại vì trùng khoá. 6. `layTonKhoTuoi` trả 0 khi không đọc được → coi như không thiếu → lệnh may biến mất im. 7. `if (biMat && ...)` — chưa đặt PANCAKE_WEBHOOK_SECRET thì bỏ luôn kiểm tra. 8. `surplus_flag` bật cho MỌI lệnh pending của mẫu mã và không bao giờ gỡ.
 
 SẠCH (người soát đã soi có chủ đích):
+
 - math.ts: dấu đúng, không âm, vế dangChoNhapKho gồm pending/error/skipped đúng.
 - Payload webhook méo: cả 4 kiểu đều trả 2xx, không ném.
 - Mẫu mã lạ: bỏ qua, không tạo lệnh may rác, không tạo products rác.
@@ -322,21 +320,21 @@ duyệt); hồi quy phần còn lại của don-hang/page.tsx; doi-chieu-don ch�
 Đã sửa cả 4 lỗi NGHIÊM TRỌNG và 4 lỗi QUAN TRỌNG trong một đợt:
 
 1+4 (chạy đôi): thêm bảng `pancake_locks` làm khoá dùng chung trong database (Vercel
-   mỗi lượt gọi một máy riêng, không khoá bằng biến bộ nhớ được). `xaHangDoi` và
-   `xuLyEventTonDong` đều giữ khoá; mỗi dòng hàng đợi còn phải GIÀNH nguyên tử
-   (update ... where status = <cũ> ... select) trước khi gọi Pancake. Thêm trạng thái
-   'sending' + cột `claimed_at`, dòng 'sending' quá 5 phút mới cho giành lại.
-   Vế `dangChoNhapKho` nay đếm cả 'sending' — thiếu chỗ này là khoảng hở mở lại.
-   `xuLyMotEvent` giành event bằng `update ... where processed_at is null ... select`.
+mỗi lượt gọi một máy riêng, không khoá bằng biến bộ nhớ được). `xaHangDoi` và
+`xuLyEventTonDong` đều giữ khoá; mỗi dòng hàng đợi còn phải GIÀNH nguyên tử
+(update ... where status = <cũ> ... select) trước khi gọi Pancake. Thêm trạng thái
+'sending' + cột `claimed_at`, dòng 'sending' quá 5 phút mới cho giành lại.
+Vế `dangChoNhapKho` nay đếm cả 'sending' — thiếu chỗ này là khoảng hở mở lại.
+`xuLyMotEvent` giành event bằng `update ... where processed_at is null ... select`.
 2: route nhập kho lấy `variation_id` từ ĐƠN trong DB (qua production_logs.order_id),
-   bắt mọi dòng phải cùng một mẫu mã, và từ chối dòng sản lượng đã thuộc lượt khác.
-   Thêm chỉ mục DUY NHẤT trên `pancake_stock_in_logs.production_log_id`.
+bắt mọi dòng phải cùng một mẫu mã, và từ chối dòng sản lượng đã thuộc lượt khác.
+Thêm chỉ mục DUY NHẤT trên `pancake_stock_in_logs.production_log_id`.
 3: thêm `doiSoatSanLuong()` — quét 7 ngày, tìm dòng sản lượng chưa có đường vào kho
-   rồi xếp vào hàng đợi với mã lượt TẤT ĐỊNH `b_log_<id>`, nên chạy lại không sinh
-   phiếu thừa. Gọi từ route nhập kho mỗi lượt quét định kỳ.
+rồi xếp vào hàng đợi với mã lượt TẤT ĐỊNH `b_log_<id>`, nên chạy lại không sinh
+phiếu thừa. Gọi từ route nhập kho mỗi lượt quét định kỳ.
 5: lỗi tạm thời (Pancake 5xx, timeout, mạng) trả event về processed_at = null.
 6: `layTonKhoTuoi` trả `null` khi không đọc được; mẫu mã đó bị bỏ qua, không coi là
-   "không thiếu".
+"không thiếu".
 7: thiếu PANCAKE_WEBHOOK_SECRET nay là 500 chứ không phải cho qua.
 8: gỡ `surplus_flag` khi đơn Pancake được sửa lại cho đủ.
 
@@ -354,20 +352,20 @@ còn hơn nhập hai lần.
 Chủ xưởng đã chạy supabase-pancake-sua.sql; checker báo đủ. Bốn phép thử:
 
 A) CHỐNG CHẠY ĐÔI — bắn hai lượt POST /api/pancake/nhap-kho CÙNG LÚC:
-   lượt 1 → {"xong":0,"banRon":true} (đứng ngoài vì luồng kia giữ khoá)
-   lượt 2 → {"xong":1}
-   Trước bản vá: cả hai cùng gửi phiếu sang Pancake.
+lượt 1 → {"xong":0,"banRon":true} (đứng ngoài vì luồng kia giữ khoá)
+lượt 2 → {"xong":1}
+Trước bản vá: cả hai cùng gửi phiếu sang Pancake.
 
 B) LƯỢT ĐỐI SOÁT — dựng một đơn đã may xong mà CỐ Ý không có dòng nhập kho nào
-   (đúng cảnh mất mạng lúc thợ bấm Xong). Gọi body rỗng → tự nhặt lên, sinh đúng
-   MỘT dòng `b_log_log_TEST_khoa`, số lượng 5 lấy từ sổ sản lượng, mẫu mã lấy từ đơn.
-   Hai lượt chạy song song vẫn chỉ ra một dòng (mã lượt tất định + ràng buộc duy nhất).
+(đúng cảnh mất mạng lúc thợ bấm Xong). Gọi body rỗng → tự nhặt lên, sinh đúng
+MỘT dòng `b_log_log_TEST_khoa`, số lượng 5 lấy từ sổ sản lượng, mẫu mã lấy từ đơn.
+Hai lượt chạy song song vẫn chỉ ra một dòng (mã lượt tất định + ràng buộc duy nhất).
 
 C) CHỐNG GỬI LẠI — gửi lại cùng dòng sản lượng với mã lượt MỚI → 409
-   "dong san luong da vao kho roi".
+"dong san luong da vao kho roi".
 
 D) CHỐNG MẠO MẪU MÃ — gửi `variation_id: "MAU-MA-BIA-DAT"` trong body → dòng tạo ra
-   mang mẫu mã THẬT lấy từ đơn (5013d4f3-…), không phải chuỗi bịa.
+mang mẫu mã THẬT lấy từ đơn (5013d4f3-…), không phải chuỗi bịa.
 
 Đã xoá sạch dữ liệu test, bảng khoá cũng dọn. Đơn về lại 53.
 
@@ -381,7 +379,7 @@ Nguyên nhân: công thức ở mục 4 của spec lấy `thiếu = max(0, −t�
 V38-LOANG-M đang −8 vì tích luỹ từ nhiều đơn (và có thể cả do tồn trôi lâu ngày).
 Quy tắc "tổng lệnh may = số đang thiếu" đúng ở mức toàn shop nhưng SAI ở mức MỘT đơn.
 Sửa: thêm trần cứng `soLuongDonNay` vào `tinhSoCanMay` —
-  canMay = min( max(0, thiếu − đã_lo_liệu), số cái mẫu mã đó trong chính đơn này ).
+canMay = min( max(0, thiếu − đã_lo_liệu), số cái mẫu mã đó trong chính đơn này ).
 Vế đã_lo_liệu giữ nguyên nên vẫn không đẻ lệnh trùng giữa các đơn.
 Thêm `soLuongTheoMauMa()` ở quyetDinh.ts, cộng dồn khi một mẫu mã nằm nhiều dòng.
 
@@ -397,3 +395,30 @@ và 2 ảnh khác nhau theo màu. Tổng test 58/58 xanh.
 
 BÀI HỌC: số âm của Pancake là tồn tích luỹ của CẢ SHOP, không phải nhu cầu của một
 đơn. Mọi quy tắc tính theo tồn phải có trần theo đơn.
+
+=== BA LỖI NỮA KHI CHỦ XƯỞNG DÙNG THẬT (28/10/2026, đợt 2) ===
+
+LỖI 3 — màn Tạo đơn trắng màn, chủ xưởng không tạo được đơn nào.
+React error #310 ("rendered more hooks than during the previous render"). Khi thêm ô
+chọn mẫu mã Pancake ở Task 14, `useEffect` dò mẫu mã bị đặt SAU các lần `return` sớm
+của component (`if (user?.role !== "admin") return ...`). Lần vẽ nào đi vào nhánh
+return sớm thì hook đó không chạy → số hook đổi → React ném và màn trắng.
+Sửa: chuyển hook lên trên mọi lần return sớm.
+BÀI HỌC: mọi hook phải nằm trên tất cả các `return` sớm. Build và test đơn vị KHÔNG
+bắt được lỗi này — chỉ mở màn hình thật mới thấy.
+
+LỖI 4 — lệnh may nhân lên mỗi lần Pancake sửa đơn. Xem mục trên (đã sửa bằng trần
+`daTaoChoDonNay`).
+
+LỖI 5 — màn Tạo đơn đứng hình cả chục giây.
+`getProducts()` gọi MỘT truy vấn riêng cho MỖI sản phẩm để lấy phân loại. Trước đây 7
+sản phẩm nên không ai để ý; sau khi đồng bộ 49 sản phẩm Xưởng nhà làm thành 56 lượt
+gọi nối đuôi nhau. Sửa: lấy hết `product_variants` trong một lượt rồi gom trong bộ nhớ.
+
+THEO YÊU CẦU CHỦ XƯỞNG (28/10):
+- App chủ xưởng có thêm kiểu xem Gộp theo mẫu mã (không có nút Báo xong — việc của thợ).
+- Bàn cắt cũng có hai kiểu xem; ở kiểu gộp thì chia ngược số vừa cắt về từng đơn,
+  đơn trễ nhận trước (`chiaSoCat`).
+- Mở app LẦN NÀO CŨNG vào kiểu Gộp, không nhớ lựa chọn cũ nữa.
+- Đồng bộ toàn bộ 49 sản phẩm / 704 mẫu mã của Xưởng nhà làm vào app, kèm màu, size
+  và ảnh riêng từng màu (`/api/cron/dong-bo-san-pham`, chạy trong lượt 2h sáng).
