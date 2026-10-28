@@ -222,6 +222,23 @@ async function idChuXuong(): Promise<string> {
   return id;
 }
 
+/**
+ * Số cái đã tạo lệnh may cho CHÍNH đơn Pancake này, của chính mẫu mã này.
+ * Đếm cả lệnh đã may xong, vì hàng đó đã được lo rồi.
+ */
+async function demDaTaoChoDon(
+  pancakeOrderId: string,
+  variationId: string,
+): Promise<number> {
+  if (!pancakeOrderId) return 0;
+  const { data } = await supabaseServer
+    .from("orders")
+    .select("quantity")
+    .eq("pancake_order_id", pancakeOrderId)
+    .eq("pancake_variation_id", variationId);
+  return (data ?? []).reduce((t, o: any) => t + (o.quantity ?? 0), 0);
+}
+
 /** Tổng số cái của mẫu mã này đang nằm trong các lệnh may chưa xong. */
 async function demDangChoMay(variationId: string): Promise<number> {
   const { data } = await supabaseServer
@@ -317,11 +334,13 @@ export async function xuLyMotEvent(
       const mauMa = dayDu.get(variationId);
       if (!mauMa) continue;
 
-      const [remainQuantity, dangChoMay, dangChoNhapKho] = await Promise.all([
-        layTonKhoTuoi(variationId),
-        demDangChoMay(variationId),
-        demDangChoNhapKho(variationId),
-      ]);
+      const [remainQuantity, dangChoMay, dangChoNhapKho, daTaoChoDonNay] =
+        await Promise.all([
+          layTonKhoTuoi(variationId),
+          demDangChoMay(variationId),
+          demDangChoNhapKho(variationId),
+          demDaTaoChoDon(don.id, variationId),
+        ]);
 
       // Không đọc được tồn thì BỎ QUA mẫu mã này, để lượt sau tính lại. Coi như
       // tồn 0 là lệnh may biến mất im lặng.
@@ -335,6 +354,7 @@ export async function xuLyMotEvent(
         dangChoMay,
         dangChoNhapKho,
         soLuongDonNay: soLuongDon[variationId] ?? 0,
+        daTaoChoDonNay,
       });
 
       // Không tự xoá lệnh may — thợ có thể đã may rồi. Chỉ gắn cờ cho chủ xưởng

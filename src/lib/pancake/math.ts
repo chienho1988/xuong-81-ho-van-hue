@@ -25,6 +25,13 @@ export interface SoLieuMauMa {
    * gặp ngày 28/10 với đơn #67645.
    */
   soLuongDonNay: number;
+  /**
+   * Số cái ĐÃ tạo lệnh may cho chính đơn Pancake này, của chính mẫu mã này.
+   *
+   * Pancake bắn webhook MỖI LẦN đơn được sửa — đơn #67639 ngày 28/10 bắn 3 lần —
+   * nên nếu không trừ phần đã tạo thì mỗi lần bắn lại đẻ thêm một lệnh may nữa.
+   */
+  daTaoChoDonNay: number;
 }
 
 export interface KetQuaCanMay {
@@ -41,7 +48,8 @@ export function tinhSoCanMay(s: SoLieuMauMa): KetQuaCanMay {
 
   // Hai trần: phần cả shop còn thiếu mà chưa ai lo, và số chính đơn này cần.
   const theoShop = Math.max(0, chenh);
-  const canMay = Math.min(theoShop, Math.max(0, s.soLuongDonNay));
+  const conThieuCuaDonNay = Math.max(0, s.soLuongDonNay - s.daTaoChoDonNay);
+  const canMay = Math.min(theoShop, conThieuCuaDonNay);
 
   return {
     canMay,
