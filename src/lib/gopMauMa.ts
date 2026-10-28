@@ -96,8 +96,7 @@ export function gomTheoMauMa(orders: Order[], homNay: string): NhomMauMa[] {
 
   for (const don of orders) {
     const khoa =
-      don.pancake_variation_id ??
-      `${don.product_id}|${don.color}|${don.size}`;
+      don.pancake_variation_id ?? `${don.product_id}|${don.color}|${don.size}`;
     const nhom = theoKhoa.get(khoa);
     if (nhom) nhom.push(don);
     else theoKhoa.set(khoa, [don]);
@@ -122,7 +121,9 @@ export function gomTheoMauMa(orders: Order[], homNay: string): NhomMauMa[] {
       pancake_variation_id: dau.pancake_variation_id ?? null,
       tongConLai: daXep.reduce((t, d) => t + d.remaining_quantity, 0),
       soDon: daXep.length,
-      hanGapNhat: cacHan.length ? cacHan.reduce((a, b) => (a < b ? a : b)) : null,
+      hanGapNhat: cacHan.length
+        ? cacHan.reduce((a, b) => (a < b ? a : b))
+        : null,
       coDonTre: cacHan.some((h) => h < homNay),
       dons: daXep,
     });

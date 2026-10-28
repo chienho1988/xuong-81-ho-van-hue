@@ -64,7 +64,9 @@ function TabNhapKho({
               <b>{d.quantity} cái</b>
               <span>
                 {(d.created_at || "").slice(0, 16).replace("T", " ")}
-                {d.purchase_display_id ? ` · phiếu ${d.purchase_display_id}` : ""}
+                {d.purchase_display_id
+                  ? ` · phiếu ${d.purchase_display_id}`
+                  : ""}
               </span>
               {d.status === "error" && d.error_message && (
                 <div className="kho-loi">{d.error_message}</div>
@@ -313,148 +315,154 @@ export default function BaoCaoPage() {
           <button onClick={() => router.push("/lich-su")}>Lịch sử</button>
         </div>
 
-        {tab === "nhap-kho" && <TabNhapKho dong={nhapKho} onThuLai={thuLai} onTuNhapTay={tuNhapTay} />}
+        {tab === "nhap-kho" && (
+          <TabNhapKho
+            dong={nhapKho}
+            onThuLai={thuLai}
+            onTuNhapTay={tuNhapTay}
+          />
+        )}
 
         {tab === "thang" && (
-        <>
-        {/* Tổng */}
-        <div className="report-stat">
-          <div className="report-stat-label">
-            Tổng sản phẩm tháng {selMonth}/{selYear}
-          </div>
-          <div className="report-stat-val">{totalQty} cái</div>
-          <div className="report-row" style={{ marginTop: 10 }}>
-            <span>🧵 Đã may</span>
-            <b>{totalQty} cái</b>
-          </div>
-          <div className="report-row">
-            <span>✂️ Đã cắt</span>
-            <b>{tongCat} cái</b>
-          </div>
-        </div>
-
-        {/* Theo danh mục */}
-        <div className="report-stat">
-          <div
-            className="report-stat-label"
-            style={{ marginBottom: 12, fontWeight: 700 }}
-          >
-            Theo danh mục
-          </div>
-          {Object.entries(byCat).length === 0 ? (
-            <div style={{ color: "var(--text-secondary)", fontSize: 14 }}>
-              Không có dữ liệu
+          <>
+            {/* Tổng */}
+            <div className="report-stat">
+              <div className="report-stat-label">
+                Tổng sản phẩm tháng {selMonth}/{selYear}
+              </div>
+              <div className="report-stat-val">{totalQty} cái</div>
+              <div className="report-row" style={{ marginTop: 10 }}>
+                <span>🧵 Đã may</span>
+                <b>{totalQty} cái</b>
+              </div>
+              <div className="report-row">
+                <span>✂️ Đã cắt</span>
+                <b>{tongCat} cái</b>
+              </div>
             </div>
-          ) : (
-            Object.entries(byCat).map(([catId, qty]) => {
-              const cat = categories.find((c: any) => c.id === catId);
-              return (
-                <div key={catId} className="report-row">
-                  <span>
-                    {cat?.icon} {cat?.name}
-                  </span>
-                  <b>{qty} cái</b>
-                </div>
-              );
-            })
-          )}
-        </div>
 
-        {/* Top sản phẩm */}
-        <div className="report-stat">
-          <div
-            className="report-stat-label"
-            style={{ marginBottom: 12, fontWeight: 700 }}
-          >
-            Top sản phẩm
-          </div>
-          {topProds.length === 0 ? (
-            <div style={{ color: "var(--text-secondary)", fontSize: 14 }}>
-              Không có dữ liệu
+            {/* Theo danh mục */}
+            <div className="report-stat">
+              <div
+                className="report-stat-label"
+                style={{ marginBottom: 12, fontWeight: 700 }}
+              >
+                Theo danh mục
+              </div>
+              {Object.entries(byCat).length === 0 ? (
+                <div style={{ color: "var(--text-secondary)", fontSize: 14 }}>
+                  Không có dữ liệu
+                </div>
+              ) : (
+                Object.entries(byCat).map(([catId, qty]) => {
+                  const cat = categories.find((c: any) => c.id === catId);
+                  return (
+                    <div key={catId} className="report-row">
+                      <span>
+                        {cat?.icon} {cat?.name}
+                      </span>
+                      <b>{qty} cái</b>
+                    </div>
+                  );
+                })
+              )}
             </div>
-          ) : (
-            topProds.map(([pId, qty], i) => {
-              const p = products.find((x: any) => x.id === pId);
-              return (
-                <div key={pId} className="report-row">
-                  <span>
-                    {i + 1}. {p?.name}
-                  </span>
-                  <b>{qty} cái</b>
-                </div>
-              );
-            })
-          )}
-        </div>
 
-        {/* Theo size */}
-        <div className="report-stat">
-          <div
-            className="report-stat-label"
-            style={{ marginBottom: 12, fontWeight: 700 }}
-          >
-            Theo size
-          </div>
-          {Object.entries(bySize).length === 0 ? (
-            <div style={{ color: "var(--text-secondary)", fontSize: 14 }}>
-              Không có dữ liệu
+            {/* Top sản phẩm */}
+            <div className="report-stat">
+              <div
+                className="report-stat-label"
+                style={{ marginBottom: 12, fontWeight: 700 }}
+              >
+                Top sản phẩm
+              </div>
+              {topProds.length === 0 ? (
+                <div style={{ color: "var(--text-secondary)", fontSize: 14 }}>
+                  Không có dữ liệu
+                </div>
+              ) : (
+                topProds.map(([pId, qty], i) => {
+                  const p = products.find((x: any) => x.id === pId);
+                  return (
+                    <div key={pId} className="report-row">
+                      <span>
+                        {i + 1}. {p?.name}
+                      </span>
+                      <b>{qty} cái</b>
+                    </div>
+                  );
+                })
+              )}
             </div>
-          ) : (
-            Object.entries(bySize)
-              .sort((a: any, b: any) => b[1] - a[1])
-              .map(([size, qty]) => (
-                <div key={size} className="report-row">
-                  <span>Size {size}</span>
-                  <b>{qty} cái</b>
-                </div>
-              ))
-          )}
-        </div>
 
-        {/* Theo màu */}
-        <div className="report-stat">
-          <div
-            className="report-stat-label"
-            style={{ marginBottom: 12, fontWeight: 700 }}
-          >
-            Theo màu
-          </div>
-          {Object.entries(byColor).length === 0 ? (
-            <div style={{ color: "var(--text-secondary)", fontSize: 14 }}>
-              Không có dữ liệu
+            {/* Theo size */}
+            <div className="report-stat">
+              <div
+                className="report-stat-label"
+                style={{ marginBottom: 12, fontWeight: 700 }}
+              >
+                Theo size
+              </div>
+              {Object.entries(bySize).length === 0 ? (
+                <div style={{ color: "var(--text-secondary)", fontSize: 14 }}>
+                  Không có dữ liệu
+                </div>
+              ) : (
+                Object.entries(bySize)
+                  .sort((a: any, b: any) => b[1] - a[1])
+                  .map(([size, qty]) => (
+                    <div key={size} className="report-row">
+                      <span>Size {size}</span>
+                      <b>{qty} cái</b>
+                    </div>
+                  ))
+              )}
             </div>
-          ) : (
-            Object.entries(byColor)
-              .sort((a: any, b: any) => b[1] - a[1])
-              .map(([color, qty]) => (
-                <div key={color} className="report-row">
-                  <span>{color}</span>
-                  <b>{qty} cái</b>
-                </div>
-              ))
-          )}
-        </div>
 
-        <div style={{ padding: "8px 12px 16px" }}>
-          <button
-            className="btn btn-primary btn-full"
-            id="btn-xuat-excel"
-            style={{ fontSize: 16 }}
-          >
-            📥 Xuất Excel
-          </button>
-          <p
-            style={{
-              fontSize: 12,
-              color: "var(--text-secondary)",
-              textAlign: "center",
-              marginTop: 8,
-            }}
-          >
-            Xuất Excel định kỳ mỗi tháng
-          </p>
-        </div>
-        </>
+            {/* Theo màu */}
+            <div className="report-stat">
+              <div
+                className="report-stat-label"
+                style={{ marginBottom: 12, fontWeight: 700 }}
+              >
+                Theo màu
+              </div>
+              {Object.entries(byColor).length === 0 ? (
+                <div style={{ color: "var(--text-secondary)", fontSize: 14 }}>
+                  Không có dữ liệu
+                </div>
+              ) : (
+                Object.entries(byColor)
+                  .sort((a: any, b: any) => b[1] - a[1])
+                  .map(([color, qty]) => (
+                    <div key={color} className="report-row">
+                      <span>{color}</span>
+                      <b>{qty} cái</b>
+                    </div>
+                  ))
+              )}
+            </div>
+
+            <div style={{ padding: "8px 12px 16px" }}>
+              <button
+                className="btn btn-primary btn-full"
+                id="btn-xuat-excel"
+                style={{ fontSize: 16 }}
+              >
+                📥 Xuất Excel
+              </button>
+              <p
+                style={{
+                  fontSize: 12,
+                  color: "var(--text-secondary)",
+                  textAlign: "center",
+                  marginTop: 8,
+                }}
+              >
+                Xuất Excel định kỳ mỗi tháng
+              </p>
+            </div>
+          </>
         )}
       </div>
       <BottomNav />

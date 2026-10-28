@@ -31,7 +31,8 @@ export function dungLoiNhac(
   buoi: "sang" | "chieu",
 ): LoiNhac | null {
   const choMay = dons.filter((d) => d.status !== "done");
-  const cai = (ds: Order[]) => ds.reduce((t, d) => t + (d.remaining_quantity ?? 0), 0);
+  const cai = (ds: Order[]) =>
+    ds.reduce((t, d) => t + (d.remaining_quantity ?? 0), 0);
 
   const tre = choMay.filter((d) => xepNhomHan(d, homNay) === "tre");
   const nay = choMay.filter((d) => xepNhomHan(d, homNay) === "hom-nay");
@@ -44,7 +45,8 @@ export function dungLoiNhac(
 
   const phan: string[] = [];
   if (soTre > 0) phan.push(`${soTre} cái TRỄ HẠN (${tre.length} đơn)`);
-  if (soNay > 0) phan.push(`${soNay} cái phải xong hôm nay (${nay.length} đơn)`);
+  if (soNay > 0)
+    phan.push(`${soNay} cái phải xong hôm nay (${nay.length} đơn)`);
   if (!phan.length) phan.push(`${tong} cái đang chờ may`);
 
   return {

@@ -23,9 +23,9 @@ export default function BottomNav() {
     { path: "/lich-su", icon: "🕐", label: "Lịch sử", cho: "tho" },
   ];
 
-
   const visibleTabs = tabs.filter(
-    (t) => t.cho === "ca-hai" || (isAdmin ? t.cho === "admin" : t.cho === "tho"),
+    (t) =>
+      t.cho === "ca-hai" || (isAdmin ? t.cho === "admin" : t.cho === "tho"),
   );
 
   return (

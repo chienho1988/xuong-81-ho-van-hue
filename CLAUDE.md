@@ -93,15 +93,15 @@ tăng. Thiết kế đầy đủ: `docs/superpowers/specs/2026-10-27-ket-noi-pan
 
 **Route mới**
 
-| Route                       | Việc                                              |
-| --------------------------- | ------------------------------------------------- |
-| `/api/pancake/webhook`      | Nhận đơn từ Pancake, ghi rồi trả 200 NGAY          |
-| `/api/pancake/xu-ly`        | Biến event thành lệnh may                          |
-| `/api/pancake/nhap-kho`     | Xếp và xả hàng đợi nhập kho                        |
-| `/api/cron/nhac-nho`        | Nhắc 7h30 / 14h                                    |
-| `/api/cron/dong-bo-mau-ma`  | Chép danh mục mẫu mã về (chia 6 trang/lượt)        |
-| `/api/cron/doi-chieu-don`   | Đối chiếu đơn 24h qua, phòng khi webhook bị tắt    |
-| `/api/cron/keep-alive`      | Chống Supabase ngủ sau 7 ngày                      |
+| Route                      | Việc                                            |
+| -------------------------- | ----------------------------------------------- |
+| `/api/pancake/webhook`     | Nhận đơn từ Pancake, ghi rồi trả 200 NGAY       |
+| `/api/pancake/xu-ly`       | Biến event thành lệnh may                       |
+| `/api/pancake/nhap-kho`    | Xếp và xả hàng đợi nhập kho                     |
+| `/api/cron/nhac-nho`       | Nhắc 7h30 / 14h                                 |
+| `/api/cron/dong-bo-mau-ma` | Chép danh mục mẫu mã về (chia 6 trang/lượt)     |
+| `/api/cron/doi-chieu-don`  | Đối chiếu đơn 24h qua, phòng khi webhook bị tắt |
+| `/api/cron/keep-alive`     | Chống Supabase ngủ sau 7 ngày                   |
 
 **Quy tắc sống còn**
 

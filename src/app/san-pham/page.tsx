@@ -694,9 +694,7 @@ function DanhMucContent() {
       : (p as any).source !== "pancake";
 
   const getProductsByCat = (catId: string) =>
-    products.filter(
-      (p) => p.category_id === catId && p.active && hopNguon(p),
-    );
+    products.filter((p) => p.category_id === catId && p.active && hopNguon(p));
 
   const handleSaveProduct = async (
     data: Partial<Product> & {

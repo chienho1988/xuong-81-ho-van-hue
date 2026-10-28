@@ -42,14 +42,17 @@ async function chay(req: Request) {
   );
 
   if (!error && dons.length) {
-    await fetch(new URL("/api/pancake/xu-ly", req.url).origin + "/api/pancake/xu-ly", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-xuong81-secret": process.env.PANCAKE_WEBHOOK_SECRET ?? "",
+    await fetch(
+      new URL("/api/pancake/xu-ly", req.url).origin + "/api/pancake/xu-ly",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-xuong81-secret": process.env.PANCAKE_WEBHOOK_SECRET ?? "",
+        },
+        body: JSON.stringify({}),
       },
-      body: JSON.stringify({}),
-    }).catch(() => {});
+    ).catch(() => {});
   }
 
   return Response.json({
