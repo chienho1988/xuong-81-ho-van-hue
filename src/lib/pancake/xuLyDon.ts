@@ -77,6 +77,33 @@ export async function layTraCuu(variationIds: string[]): Promise<{
 }
 
 /**
+ * Bảo đảm có một dòng `product_variants` cho mẫu mã này.
+ *
+ * Sản phẩm của chủ xưởng đều có dòng phân loại riêng cho từng màu + size, kèm ảnh
+ * của chính phân loại đó. Sản phẩm từ Pancake mà thiếu nó thì màn Sản phẩm hiện
+ * trống phần "Danh sách phân loại" và ảnh từng màu không có chỗ nào lưu.
+ *
+ * Id suy tất định từ variation_id nên chạy lại bao nhiêu lần cũng chỉ một dòng.
+ */
+async function baoDamPhanLoai(productId: string, mauMa: MauMaPancake) {
+  if (!mauMa.color && !mauMa.size) return;
+  await supabaseServer.from("product_variants").upsert(
+    {
+      id: `v_pk_${mauMa.variation_id}`,
+      product_id: productId,
+      color: mauMa.color || "—",
+      size: mauMa.size || "—",
+      image_url: mauMa.image_url,
+      // Tồn của hàng Pancake nằm bên Pancake, app không quản ở đây.
+      current_quantity: 0,
+      note: mauMa.display_id ?? "",
+    },
+    { onConflict: "id" },
+  );
+}
+
+
+/**
  * Bảo đảm có một dòng `products` nội bộ cho mẫu mã Pancake này.
  * orders.product_id và production_logs.product_id đều NOT NULL khoá ngoại tới
  * products, nên không có dòng này thì không tạo được lệnh may.
@@ -116,6 +143,7 @@ export async function baoDamSanPham(mauMa: MauMaPancake): Promise<string> {
         })
         .eq("id", cu.id);
     }
+    await baoDamPhanLoai(cu.id, mauMa);
     return cu.id;
   }
 
@@ -170,6 +198,7 @@ export async function baoDamSanPham(mauMa: MauMaPancake): Promise<string> {
   if (error)
     throw new Error(`Không tạo được sản phẩm nội bộ: ${error.message}`);
 
+  await baoDamPhanLoai(id, mauMa);
   return id;
 }
 
