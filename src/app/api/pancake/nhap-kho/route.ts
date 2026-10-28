@@ -83,7 +83,9 @@ export async function POST(req: Request) {
       }
 
       const mauMa = motMauMaDuyNhat(
-        logs.map((l: any) => (l.order_id ? (theoDon[l.order_id] ?? null) : null)),
+        logs.map((l: any) =>
+          l.order_id ? (theoDon[l.order_id] ?? null) : null,
+        ),
       );
       if (!mauMa) {
         return Response.json(

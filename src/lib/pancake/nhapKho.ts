@@ -7,11 +7,7 @@
 import { supabaseServer } from "../supabaseServer.ts";
 import { taoPhieuNhapKho, type KetQuaNhapKho } from "./api.ts";
 import type { MucNhapKho } from "./payload.ts";
-import {
-  khoaConHan,
-  batchIdChoLog,
-  logChuaVaoKho,
-} from "./doiSoat.ts";
+import { khoaConHan, batchIdChoLog, logChuaVaoKho } from "./doiSoat.ts";
 
 /** Số lần thử lại ngay trong chính lượt gọi, trước khi để lại cho hàng đợi. */
 const SO_LAN_THU_NGAY = 3;
@@ -187,7 +183,8 @@ export async function xaHangDoi(
 
     for (const dong of data ?? []) {
       // Dòng 'sending' chỉ được giành lại khi lượt giữ nó đã quá cũ.
-      if (dong.status === "sending" && (dong.claimed_at ?? "") > cuHon) continue;
+      if (dong.status === "sending" && (dong.claimed_at ?? "") > cuHon)
+        continue;
 
       const daGianh = await gianhDong(dong.batch_id, dong.status);
       if (!daGianh) continue;
@@ -273,7 +270,8 @@ export async function doiSoatSanLuong(soNgay = 7): Promise<number> {
     .select("id,pancake_variation_id")
     .in("id", donIds as string[]);
   const mauMaTheoDon: Record<string, string | null> = {};
-  for (const d of dons ?? []) mauMaTheoDon[d.id] = d.pancake_variation_id ?? null;
+  for (const d of dons ?? [])
+    mauMaTheoDon[d.id] = d.pancake_variation_id ?? null;
 
   const thieu = logChuaVaoKho(logs as any, daCoSet, mauMaTheoDon);
 

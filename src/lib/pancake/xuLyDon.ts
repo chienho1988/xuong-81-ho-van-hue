@@ -102,7 +102,6 @@ async function baoDamPhanLoai(productId: string, mauMa: MauMaPancake) {
   );
 }
 
-
 /**
  * Bảo đảm có một dòng `products` nội bộ cho mẫu mã Pancake này.
  * orders.product_id và production_logs.product_id đều NOT NULL khoá ngoại tới
@@ -128,8 +127,7 @@ export async function baoDamSanPham(mauMa: MauMaPancake): Promise<string> {
 
     const themMau = mauMa.color && !mau.includes(mauMa.color);
     const themSize = mauMa.size && !size.includes(mauMa.size);
-    const themAnh =
-      mauMa.color && mauMa.image_url && !anhTheoMau[mauMa.color];
+    const themAnh = mauMa.color && mauMa.image_url && !anhTheoMau[mauMa.color];
 
     if (themMau || themSize || themAnh) {
       await supabaseServer
