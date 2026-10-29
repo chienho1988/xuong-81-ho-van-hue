@@ -42,7 +42,11 @@ async function chay(req: Request) {
   );
 
   if (!error && dons.length) {
-    await fetch(
+    // Bắn rồi quên, giống webhook. Trước ngày 29/10 chỗ này còn await: đo trên
+    // Vercel mất 48,8 giây, sát trần 60 giây của hàm — mà từ nay lượt này chạy
+    // mỗi 5 phút chứ không phải mỗi 24 giờ nữa. Route xu-ly có khoá riêng nên
+    // hai lượt chồng nhau cũng không làm đôi việc.
+    void fetch(
       new URL("/api/pancake/xu-ly", req.url).origin + "/api/pancake/xu-ly",
       {
         method: "POST",

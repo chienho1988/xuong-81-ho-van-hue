@@ -25,6 +25,8 @@ const TOI_DA_MAU_MA = 20;
  * sách trước khi cắt nên mẫu mã nào cũng tới lượt sau vài lần chạy.
  */
 export const TOI_DA_QUET = 30;
+/** Số mẫu mã soi song song một tốp. */
+const MOI_TOP = 5;
 
 /**
  * Gói này có phải một đơn hàng không?
@@ -93,50 +95,71 @@ export async function dongBoTonKhoMauMa(
   });
   ketQua.conLai = Math.max(0, rieng.length - toiDa);
 
-  for (const variationId of rieng.slice(0, toiDa)) {
-    const remainQuantity = await layTonKhoTuoi(variationId);
-    // Không đọc được tồn thì bỏ qua, lượt sau tính lại — giống luồng A.
-    if (remainQuantity === null) continue;
-    ketQua.mauMa++;
-
-    await supabaseServer
-      .from("product_variants")
-      .update({ current_quantity: Math.max(0, remainQuantity) })
-      .eq("id", `v_pk_${variationId}`);
-
-    const [dangChoMay, dangChoNhapKho] = await Promise.all([
-      demDangChoMay(variationId),
-      demDangChoNhapKho(variationId),
-    ]);
-
-    const { mayDu } = tinhSoCanMay({
-      remainQuantity,
-      dangChoMay,
-      dangChoNhapKho,
-      // Không có đơn nào đang xét: đây là lượt soi riêng tồn kho.
-      soLuongDonNay: 0,
-      daTaoChoDonNay: 0,
+  // Chạy từng tốp song song: đo trên Vercel 29/10 là 2,2 giây một mẫu mã nếu làm
+  // lần lượt, 23 mẫu đã ngốn 50 giây — sát trần 60 giây của hàm. Năm việc một tốp
+  // là đủ nhanh mà không dội Pancake.
+  const canLam = rieng.slice(0, toiDa);
+  for (let i = 0; i < canLam.length; i += MOI_TOP) {
+    const top = canLam.slice(i, i + MOI_TOP);
+    const phan = await Promise.all(
+      top.map((id) => soiMotMauMa(id).catch(() => null)),
+    );
+    phan.forEach((x) => {
+      if (!x) return;
+      ketQua.mauMa++;
+      ketQua.danhDauDu += x.danhDauDu;
+      ketQua.boCo += x.boCo;
     });
-
-    if (mayDu > 0) {
-      const { data } = await supabaseServer
-        .from("orders")
-        .update({ surplus_flag: true })
-        .eq("pancake_variation_id", variationId)
-        .eq("status", "pending")
-        .select("id");
-      ketQua.danhDauDu += (data ?? []).length;
-    } else {
-      const { data } = await supabaseServer
-        .from("orders")
-        .update({ surplus_flag: false })
-        .eq("pancake_variation_id", variationId)
-        .eq("status", "pending")
-        .eq("surplus_flag", true)
-        .select("id");
-      ketQua.boCo += (data ?? []).length;
-    }
   }
 
   return ketQua;
+}
+
+/** Soi đúng một mẫu mã. Trả null khi không đọc được tồn — lượt sau tính lại. */
+async function soiMotMauMa(
+  variationId: string,
+): Promise<{ danhDauDu: number; boCo: number } | null> {
+  const phan = { danhDauDu: 0, boCo: 0 };
+  const remainQuantity = await layTonKhoTuoi(variationId);
+  if (remainQuantity === null) return null;
+
+  await supabaseServer
+    .from("product_variants")
+    .update({ current_quantity: Math.max(0, remainQuantity) })
+    .eq("id", `v_pk_${variationId}`);
+
+  const [dangChoMay, dangChoNhapKho] = await Promise.all([
+    demDangChoMay(variationId),
+    demDangChoNhapKho(variationId),
+  ]);
+
+  const { mayDu } = tinhSoCanMay({
+    remainQuantity,
+    dangChoMay,
+    dangChoNhapKho,
+    // Không có đơn nào đang xét: đây là lượt soi riêng tồn kho.
+    soLuongDonNay: 0,
+    daTaoChoDonNay: 0,
+  });
+
+  if (mayDu > 0) {
+    const { data } = await supabaseServer
+      .from("orders")
+      .update({ surplus_flag: true })
+      .eq("pancake_variation_id", variationId)
+      .eq("status", "pending")
+      .select("id");
+    phan.danhDauDu = (data ?? []).length;
+  } else {
+    const { data } = await supabaseServer
+      .from("orders")
+      .update({ surplus_flag: false })
+      .eq("pancake_variation_id", variationId)
+      .eq("status", "pending")
+      .eq("surplus_flag", true)
+      .select("id");
+    phan.boCo = (data ?? []).length;
+  }
+
+  return phan;
 }
