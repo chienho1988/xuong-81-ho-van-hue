@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/AuthContext';
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -10,14 +10,24 @@ export default function HomePage() {
 
   useEffect(() => {
     if (user) {
-      router.replace('/san-pham');
+      // Vào thẳng đơn hàng: cả thợ lẫn chủ xưởng mở app lên là để xem hôm nay
+      // may gì, không phải để xem danh mục sản phẩm (yêu cầu 29/10).
+      router.replace("/don-hang");
     } else {
-      router.replace('/dang-nhap');
+      router.replace("/dang-nhap");
     }
   }, [user, router]);
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontSize: 32 }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: "100dvh",
+        fontSize: 32,
+      }}
+    >
       🏭
     </div>
   );

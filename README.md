@@ -11,16 +11,16 @@ nhận đơn và báo hoàn thành. Dữ liệu đồng bộ realtime giữa cá
 
 ## 1. Công nghệ
 
-| Thành phần | Dùng gì |
-|---|---|
-| Frontend | Next.js 14 (App Router) + React 18 + TypeScript |
-| CSS | Thuần (`src/app/globals.css`), mobile-first, tối đa 480px |
-| Database | Supabase (PostgreSQL) — gọi thẳng từ client qua `@supabase/supabase-js` |
-| Đăng nhập | Chỉ PIN (không mật khẩu), lưu phiên trong `localStorage` |
-| Đồng bộ | Supabase Realtime + poll mỗi 2 giây (hook `useAutoRefresh`) |
-| Thông báo | Web Push (VAPID + `web-push`) qua API route + thông báo trong app |
+| Thành phần   | Dùng gì                                                                          |
+| ------------ | -------------------------------------------------------------------------------- |
+| Frontend     | Next.js 14 (App Router) + React 18 + TypeScript                                  |
+| CSS          | Thuần (`src/app/globals.css`), mobile-first, tối đa 480px                        |
+| Database     | Supabase (PostgreSQL) — gọi thẳng từ client qua `@supabase/supabase-js`          |
+| Đăng nhập    | Chỉ PIN (không mật khẩu), lưu phiên trong `localStorage`                         |
+| Đồng bộ      | Supabase Realtime + poll mỗi 2 giây (hook `useAutoRefresh`)                      |
+| Thông báo    | Web Push (VAPID + `web-push`) qua API route + thông báo trong app                |
 | Ảnh sản phẩm | Nén client (tối đa 800px, JPEG) rồi lưu **base64 trong DB** (không dùng Storage) |
-| Hosting | Vercel (tự deploy khi push GitHub) |
+| Hosting      | Vercel (tự deploy khi push GitHub)                                               |
 
 > Không dùng: Firebase, auth mật khẩu/email, backend server riêng. Chỉ có
 > đúng **1 API route** (`/api/send-push`) chạy trên Vercel để gửi push.

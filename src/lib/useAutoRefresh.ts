@@ -7,13 +7,13 @@
  * - window focus
  * - Debug logging
  */
-import { useEffect } from 'react';
-import { supabase } from './supabaseClient';
+import { useEffect } from "react";
+import { supabase } from "./supabaseClient";
 
 type UseAutoRefreshOptions = {
   callback: () => Promise<void>;
   table: string;
-  event?: '*' | 'INSERT' | 'UPDATE' | 'DELETE';
+  event?: "*" | "INSERT" | "UPDATE" | "DELETE";
   intervalMs?: number;
   enabled?: boolean;
 };
@@ -21,7 +21,7 @@ type UseAutoRefreshOptions = {
 export function useAutoRefresh({
   callback,
   table,
-  event = '*',
+  event = "*",
   intervalMs = 2000,
   enabled = true,
 }: UseAutoRefreshOptions) {
@@ -35,7 +35,7 @@ export function useAutoRefresh({
     const channelName = `${table}-${Math.random().toString(36).slice(2, 8)}`;
     const channel = supabase
       .channel(channelName)
-      .on('postgres_changes', { event, schema: 'public', table }, () => {
+      .on("postgres_changes", { event, schema: "public", table }, () => {
         callback();
       })
       .subscribe();
@@ -47,24 +47,24 @@ export function useAutoRefresh({
 
     // visibilitychange
     const onVisible = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === "visible") {
         callback();
       }
     };
-    document.addEventListener('visibilitychange', onVisible);
+    document.addEventListener("visibilitychange", onVisible);
 
     // window focus
     const onFocus = () => {
       callback();
     };
-    window.addEventListener('focus', onFocus);
+    window.addEventListener("focus", onFocus);
 
     return () => {
       supabase.removeChannel(channel);
       clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('focus', onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, table, event, intervalMs]);
 }

@@ -238,7 +238,7 @@ async function demDaTaoChoDon(
 }
 
 /** Tổng số cái của mẫu mã này đang nằm trong các lệnh may chưa xong. */
-async function demDangChoMay(variationId: string): Promise<number> {
+export async function demDangChoMay(variationId: string): Promise<number> {
   const { data } = await supabaseServer
     .from("orders")
     .select("remaining_quantity")
@@ -248,7 +248,7 @@ async function demDangChoMay(variationId: string): Promise<number> {
 }
 
 /** Tổng số cái đã may xong nhưng chưa vào được kho Pancake. */
-async function demDangChoNhapKho(variationId: string): Promise<number> {
+export async function demDangChoNhapKho(variationId: string): Promise<number> {
   const { data } = await supabaseServer
     .from("pancake_stock_ins")
     .select("quantity")

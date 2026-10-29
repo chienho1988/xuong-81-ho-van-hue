@@ -1,24 +1,28 @@
-import type { Metadata, Viewport } from 'next'
-import './globals.css'
-import { AuthProvider } from '@/lib/AuthContext'
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
+import { AuthProvider } from "@/lib/AuthContext";
 
 export const metadata: Metadata = {
-  title: 'Xưởng 81 Hồ Văn Huê',
-  description: 'Quản lý đơn hàng và sản lượng xưởng may',
-  manifest: '/manifest.json',
-}
+  title: "Xưởng 81 Hồ Văn Huê",
+  description: "Quản lý đơn hàng và sản lượng xưởng may",
+  manifest: "/manifest.json",
+};
 
 export const viewport: Viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-}
+};
 
 // FIX: Force-dynamic — chặn Next.js render tĩnh
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="vi">
       <head>
@@ -44,10 +48,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
-  )
+  );
 }

@@ -10,6 +10,11 @@
  * tắt webhook của cả shop.
  */
 import { supabaseServer } from "@/lib/supabaseServer";
+import {
+  laEventDon,
+  nhatVariationIds,
+  dongBoTonKhoMauMa,
+} from "@/lib/pancake/tonKho";
 
 export const dynamic = "force-dynamic";
 
@@ -49,28 +54,45 @@ export async function POST(req: Request) {
     const updatedAt =
       payload?.updated_at != null ? String(payload.updated_at) : null;
 
+    // Từ 29/10 shop bật thêm Tồn kho / Sản phẩm / Gọi tự động, nên không phải gói
+    // nào cũng là đơn. Vẫn ghi lại tất cả để còn soi được, nhưng gói không phải
+    // đơn thì đánh dấu xử lý xong ngay, kẻo hàng đợi đơn đầy những "đơn rỗng".
+    const laDon = laEventDon(payload);
     const { error } = await supabaseServer
       .from("pancake_webhook_events")
       .upsert(
-        { order_id: orderId, updated_at: updatedAt, payload },
+        {
+          order_id: orderId,
+          updated_at: updatedAt,
+          payload,
+          processed_at: laDon ? null : new Date().toISOString(),
+        },
         { onConflict: "order_id,updated_at", ignoreDuplicates: true },
       );
     if (error) {
       return Response.json({ ok: false, loi: error.message }, { status: 200 });
     }
 
-    // Bắn rồi quên: không await, để Pancake không phải chờ.
-    try {
-      void fetch(new URL("/api/pancake/xu-ly", req.url), {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-xuong81-secret": biMat,
-        },
-        body: JSON.stringify({}),
-      }).catch(() => {});
-    } catch {
-      // Không gọi được route xử lý thì lượt quét định kỳ sẽ nhặt event này.
+    if (laDon) {
+      // Bắn rồi quên: không await, để Pancake không phải chờ.
+      try {
+        void fetch(new URL("/api/pancake/xu-ly", req.url), {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-xuong81-secret": biMat,
+          },
+          body: JSON.stringify({}),
+        }).catch(() => {});
+      } catch {
+        // Không gọi được route xử lý thì lượt quét định kỳ sẽ nhặt event này.
+      }
+    } else {
+      // Gói tồn kho / sản phẩm: đọc lại tồn thật của những mẫu mã có trong gói.
+      // Chạy ngay tại đây (không bắn sang route khác) vì việc này nhẹ, và chủ
+      // xưởng cần app biết liền khi có người nhập hàng tay trên Pancake.
+      const ids = nhatVariationIds(payload);
+      if (ids.length) await dongBoTonKhoMauMa(ids);
     }
 
     return Response.json({ ok: true });

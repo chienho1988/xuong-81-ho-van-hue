@@ -78,6 +78,14 @@ jobs:
                 -H "x-xuong81-secret: $CRON_SECRET" ;;
             nhap-kho)
               curl -sS -X POST "$APP_URL/api/pancake/nhap-kho" \
-                -H "content-type: application/json" -d '{}' ;;
+                -H "content-type: application/json" -d '{}'
+              echo ""
+              # Don lot luoi webhook thi cham nhat 5 phut sau van hien ra.
+              curl -sS -X POST "$APP_URL/api/cron/doi-chieu-don" \
+                -H "x-xuong81-secret: $CRON_SECRET"
+              echo ""
+              # Chu xuong nhap hang tay tren Pancake thi app phai biet ma go co.
+              curl -sS -X POST "$APP_URL/api/cron/dong-bo-ton" \
+                -H "x-xuong81-secret: $CRON_SECRET" ;;
           esac
           echo ""

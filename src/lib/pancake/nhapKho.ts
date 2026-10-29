@@ -180,6 +180,10 @@ export async function xaHangDoi(
 
     let xong = 0;
     let loi = 0;
+    // Mẫu mã vừa nhập kho xong: đọc lại tồn thật ngay để app trừ số theo, thay vì
+    // chờ lượt quét 5 phút. Chủ xưởng kêu đúng chỗ này ngày 29/10 — bấm xong mà
+    // số trong app không nhúc nhích thì không ai tin là đã đồng bộ.
+    const vuaNhap: string[] = [];
 
     for (const dong of data ?? []) {
       // Dòng 'sending' chỉ được giành lại khi lượt giữ nó đã quá cũ.
@@ -201,6 +205,7 @@ export async function xaHangDoi(
 
       if (ketQua.ok) {
         xong++;
+        if (dong.variation_id) vuaNhap.push(dong.variation_id);
         await supabaseServer
           .from("pancake_stock_ins")
           .update({
@@ -223,6 +228,12 @@ export async function xaHangDoi(
           .eq("batch_id", dong.batch_id);
         await baoLoiChoChuXuong(dong, goc);
       }
+    }
+
+    // Sau vòng lặp, không chen giữa: một mẫu mã có thể nằm trên nhiều lượt nhập.
+    if (vuaNhap.length) {
+      const { dongBoTonKhoMauMa } = await import("./tonKho.ts");
+      await dongBoTonKhoMauMa(vuaNhap);
     }
 
     return { xong, loi };

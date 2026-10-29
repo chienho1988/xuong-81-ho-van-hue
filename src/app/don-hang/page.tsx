@@ -313,6 +313,7 @@ function NhomCard({
   moRong,
   onMoRong,
   onXong,
+  onMotPhan,
   onImageClick,
 }: {
   nhom: NhomMauMa;
@@ -321,11 +322,13 @@ function NhomCard({
   moRong: boolean;
   onMoRong: () => void;
   onXong: (n: NhomMauMa) => void;
+  onMotPhan: (n: NhomMauMa) => void;
   onImageClick: (img: string) => void;
 }) {
   const product = products[nhom.product_id];
   const dau = nhom.dons[0];
   const gap = nhom.dons.some((d) => d.priority === "urgent");
+  const daCoHang = nhom.dons.some((d) => d.surplus_flag);
 
   return (
     <div className={`order-card ${gap ? "urgent" : ""}`}>
@@ -349,6 +352,9 @@ function NhomCard({
             )}
             {nhom.coDonTre && (
               <span className="chip chip-due">🔴 Có đơn trễ</span>
+            )}
+            {daCoHang && (
+              <span className="chip chip-du">✅ KHO ĐÃ CÓ HÀNG</span>
             )}
           </div>
           {nhom.hanGapNhat && (
@@ -376,15 +382,22 @@ function NhomCard({
       )}
 
       <div className="order-actions">
-        {/* Chủ xưởng không báo xong — việc đó của thợ. Xem gộp chỉ để biết
-            mẫu nào tổng bao nhiêu cái, tiện lúc đứng cắt. */}
-        {!isAdmin && (
+        {/* Cả thợ lẫn chủ xưởng đều báo xong được: thợ không rành công nghệ
+            thì chủ xưởng bấm hộ ngay trên thẻ gộp (yêu cầu 29/10). */}
+        <button
+          className="btn btn-success"
+          style={{ flex: 2, minHeight: 46, fontSize: 15.5 }}
+          onClick={() => onXong(nhom)}
+        >
+          ✓ Báo xong
+        </button>
+        {nhom.tongConLai > 1 && (
           <button
-            className="btn btn-success"
-            style={{ flex: 2, minHeight: 46, fontSize: 15.5 }}
-            onClick={() => onXong(nhom)}
+            className="btn btn-outline"
+            style={{ flex: 1, minHeight: 46, fontSize: 14 }}
+            onClick={() => onMotPhan(nhom)}
           >
-            ✓ Báo xong
+            Một phần
           </button>
         )}
         {nhom.soDon > 1 && (
@@ -473,6 +486,13 @@ function BanCat({
     setSo({ ...so, [id]: moi });
   };
 
+  // Gõ thẳng số vào ô: một mẫu mấy trăm cái thì bấm + cả buổi không xong.
+  const dat = (id: string, raw: string, toiDa: number) => {
+    const sach = raw.replace(/[^0-9]/g, "");
+    const moi = sach === "" ? 0 : Math.min(toiDa, parseInt(sach, 10));
+    setSo({ ...so, [id]: moi });
+  };
+
   return (
     <div>
       <div className="ban-cat-head">
@@ -497,6 +517,16 @@ function BanCat({
         </button>
       </div>
 
+      <div className="ban-cat-luu">
+        <div className="ban-cat-total">
+          <span>Ghi thêm lần này</span>
+          <span>{tong} cái</span>
+        </div>
+        <button className="btn btn-cut btn-full" onClick={onLuu}>
+          Lưu {tong} cái đã cắt
+        </button>
+      </div>
+
       {dong.map((d) => {
         const du = d.chuaCat === 0;
         return (
@@ -518,7 +548,14 @@ function BanCat({
             </div>
             <div className="ban-cat-stepper">
               <button onClick={() => doi(d.khoa, -1, d.chuaCat)}>−</button>
-              <b>{so[d.khoa] || 0}</b>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={so[d.khoa] || 0}
+                onChange={(e) => dat(d.khoa, e.target.value, d.chuaCat)}
+                onFocus={(e) => e.currentTarget.select()}
+                aria-label={`Đã cắt ${d.ten}`}
+              />
               <button
                 className="plus"
                 onClick={() => doi(d.khoa, 1, d.chuaCat)}
@@ -530,14 +567,6 @@ function BanCat({
           </div>
         );
       })}
-
-      <div className="ban-cat-total">
-        <span>Ghi thêm lần này</span>
-        <span>{tong} cái</span>
-      </div>
-      <button className="btn btn-cut btn-full" onClick={onLuu}>
-        Lưu {tong} cái đã cắt
-      </button>
     </div>
   );
 }
@@ -600,6 +629,9 @@ function OrderCard({
             {isAdmin && !order.pancake_variation_id && (
               <span className="chip chip-khong-kho">KHÔNG VÀO KHO</span>
             )}
+            {order.surplus_flag && (
+              <span className="chip chip-du">✅ KHO ĐÃ CÓ HÀNG</span>
+            )}
             {!isAdmin && coSoCat(order) && (
               <span className="chip chip-cut">
                 MAY ĐƯỢC {soMayDuoc(order)} CÁI
@@ -616,44 +648,75 @@ function OrderCard({
       </div>
 
       {isAdmin ? (
-        <div className="order-actions">
-          <span className="order-time">Tạo {formatWhen(order.created_at)}</span>
-          <button
-            className="act-btn act-cut"
-            id={`btn-cut-${order.id}`}
-            onClick={() => onCut(order)}
-          >
-            ✂️ Cắt
-          </button>
-          <button
-            className="act-btn"
-            id={`btn-edit-${order.id}`}
-            onClick={() => onEdit(order)}
-          >
-            ✏️ Sửa
-          </button>
-          <button
-            className={`act-btn ${isUrgent ? "on" : ""}`}
-            id={`btn-urgent-${order.id}`}
-            onClick={() => onToggleUrgent(order)}
-          >
-            🔥 {isUrgent ? "Bỏ gấp" : "Gấp"}
-          </button>
-          <button
-            className="act-btn"
-            id={`btn-pin-${order.id}`}
-            onClick={() => onPin(order)}
-          >
-            📌 Lên đầu
-          </button>
-          <button
-            className="act-btn danger"
-            id={`btn-admin-delete-${order.id}`}
-            onClick={() => onDelete(order)}
-          >
-            🗑
-          </button>
-        </div>
+        <>
+          {/* Thợ không rành công nghệ nên chủ xưởng bấm xong hộ (yêu cầu
+              29/10). Đi chung đường với nút của thợ nên vẫn đẩy sang kho Pancake. */}
+          <div className="order-actions">
+            <button
+              className="btn btn-success"
+              id={`btn-admin-done-${order.id}`}
+              style={{ flex: 2, minHeight: 44, fontSize: 15 }}
+              onClick={() => onDone(order)}
+            >
+              ✓ Xong hết
+            </button>
+            {order.remaining_quantity > 1 && (
+              <button
+                className="btn btn-outline"
+                id={`btn-admin-partial-${order.id}`}
+                style={{
+                  flex: 1,
+                  minHeight: 44,
+                  fontSize: 14,
+                  padding: "8px 10px",
+                }}
+                onClick={() => onPartial(order)}
+              >
+                Một phần
+              </button>
+            )}
+          </div>
+          <div className="order-actions">
+            <span className="order-time">
+              Tạo {formatWhen(order.created_at)}
+            </span>
+            <button
+              className="act-btn act-cut"
+              id={`btn-cut-${order.id}`}
+              onClick={() => onCut(order)}
+            >
+              ✂️ Cắt
+            </button>
+            <button
+              className="act-btn"
+              id={`btn-edit-${order.id}`}
+              onClick={() => onEdit(order)}
+            >
+              ✏️ Sửa
+            </button>
+            <button
+              className={`act-btn ${isUrgent ? "on" : ""}`}
+              id={`btn-urgent-${order.id}`}
+              onClick={() => onToggleUrgent(order)}
+            >
+              🔥 {isUrgent ? "Bỏ gấp" : "Gấp"}
+            </button>
+            <button
+              className="act-btn"
+              id={`btn-pin-${order.id}`}
+              onClick={() => onPin(order)}
+            >
+              📌 Lên đầu
+            </button>
+            <button
+              className="act-btn danger"
+              id={`btn-admin-delete-${order.id}`}
+              onClick={() => onDelete(order)}
+            >
+              🗑
+            </button>
+          </div>
+        </>
       ) : (
         <div className="order-actions">
           <button
@@ -1303,7 +1366,11 @@ export default function DonHangPage() {
           </button>
         </div>
       )}
-      <div className="page-content scroll-top-padding">
+      <div
+        className={`page-content scroll-top-padding${
+          isAdmin && banCat ? " cho-ban-cat" : ""
+        }`}
+      >
         {/* ── Header ── */}
         <div
           className="page-header"
@@ -1482,27 +1549,27 @@ export default function DonHangPage() {
         {activeTab === "pending" && pending.length > 0 && (
           <>
             {!isAdmin && (
-            <div className="tong-can-may">
-              <div className="tong-label">TỔNG ĐANG CẦN MAY</div>
-              <div className="tong-so">
-                {tongCanMay}
-                <small>cái</small>
+              <div className="tong-can-may">
+                <div className="tong-label">TỔNG ĐANG CẦN MAY</div>
+                <div className="tong-so">
+                  {tongCanMay}
+                  <small>cái</small>
+                </div>
+                <div className="tong-phu">
+                  <div>
+                    <b>{tongTre}</b>
+                    <span>cái trễ hạn</span>
+                  </div>
+                  <div>
+                    <b>{tongHomNay}</b>
+                    <span>cái hạn hôm nay</span>
+                  </div>
+                  <div>
+                    <b>{pending.length}</b>
+                    <span>đơn chờ may</span>
+                  </div>
+                </div>
               </div>
-              <div className="tong-phu">
-                <div>
-                  <b>{tongTre}</b>
-                  <span>cái trễ hạn</span>
-                </div>
-                <div>
-                  <b>{tongHomNay}</b>
-                  <span>cái hạn hôm nay</span>
-                </div>
-                <div>
-                  <b>{pending.length}</b>
-                  <span>đơn chờ may</span>
-                </div>
-              </div>
-            </div>
             )}
             <div className="kieu-xem">
               <button
@@ -1546,6 +1613,10 @@ export default function DonHangPage() {
                 onXong={(nh) => {
                   setNhomXong(nh);
                   setNhomQty(nh.tongConLai);
+                }}
+                onMotPhan={(nh) => {
+                  setNhomXong(nh);
+                  setNhomQty(1);
                 }}
                 onImageClick={(img) => setLightbox(img)}
               />

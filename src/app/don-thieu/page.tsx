@@ -23,6 +23,12 @@ export default function DonThieuPage() {
   );
   const [loc, setLoc] = useState<Loc>("tat-ca");
 
+  // Quét lại đơn thiếu: webhook chỉ bắn khi đơn thay đổi, nên đơn cũ hoặc đơn
+  // lọt lưới lúc webhook hỏng phải có đường kéo về tay.
+  const [quetNgay, setQuetNgay] = useState(3);
+  const [dangQuet, setDangQuet] = useState(false);
+  const [tinQuet, setTinQuet] = useState("");
+
   const load = useCallback(async () => {
     const [{ data: ds }, { data: ps }] = await Promise.all([
       supabase.from("orders").select("*"),
@@ -89,6 +95,35 @@ export default function DonThieuPage() {
     .filter((o) => o.status === "done")
     .reduce((t, o) => t + o.quantity, 0);
 
+  const quetLai = async () => {
+    setDangQuet(true);
+    setTinQuet("Đang hỏi Pancake...");
+    try {
+      const res = await fetch("/api/pancake/quet-lai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ so_ngay: quetNgay }),
+      });
+      const kq = await res.json();
+      if (kq.banRon)
+        setTinQuet("Đang có lượt quét khác chạy, chờ một lát rồi bấm lại.");
+      else if (!kq.ok)
+        setTinQuet(`Không quét được: ${kq.loi ?? "lỗi không rõ"}`);
+      else {
+        setTinQuet(
+          `Đã xem ${kq.soDonQuet} đơn ${kq.soNgay} ngày gần nhất, ` +
+            `${kq.soDonMoi} đơn cần xử lý` +
+            (kq.conNua ? " (còn nữa, bấm lại để quét tiếp)" : ""),
+        );
+        await load();
+      }
+    } catch (e: any) {
+      setTinQuet(`Không quét được: ${String(e?.message ?? e)}`);
+    } finally {
+      setDangQuet(false);
+    }
+  };
+
   const doiNgay = (buoc: number) => {
     const d = new Date(`${ngay}T12:00:00`);
     d.setDate(d.getDate() + buoc);
@@ -120,6 +155,33 @@ export default function DonThieuPage() {
           <button onClick={() => doiNgay(1)} aria-label="Ngày sau">
             ›
           </button>
+        </div>
+
+        <div className="quet-lai">
+          <div className="quet-lai-dong">
+            <span className="quet-lai-nhan">Quét lại đơn thiếu trong</span>
+            {[1, 3, 7, 30].map((n) => (
+              <button
+                key={n}
+                className={quetNgay === n ? "on" : ""}
+                onClick={() => setQuetNgay(n)}
+                disabled={dangQuet}
+              >
+                {n} ngày
+              </button>
+            ))}
+          </div>
+          <button
+            className="btn btn-primary btn-full"
+            id="btn-quet-lai"
+            onClick={quetLai}
+            disabled={dangQuet}
+          >
+            {dangQuet
+              ? "Đang quét..."
+              : `Đi tìm đơn thiếu ${quetNgay} ngày qua`}
+          </button>
+          {tinQuet && <div className="quet-lai-tin">{tinQuet}</div>}
         </div>
 
         <div className="loc-nhanh">

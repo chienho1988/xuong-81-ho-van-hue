@@ -1275,10 +1275,17 @@ body {
   border-color: #ef6c00;
   color: #ef6c00;
 }
-.ban-cat-stepper b {
-  min-width: 22px;
+.ban-cat-stepper input {
+  width: 58px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid #ef6c00;
+  background: #fff;
   text-align: center;
   font-size: 17px;
+  font-weight: 800;
+  color: #e65100;
+  padding: 0 2px;
 }
 .ban-cat-of {
   font-size: 12px;
@@ -1291,12 +1298,32 @@ body {
   color: #2e7d32;
   font-weight: 800;
 }
+/* Dải tổng + nút Lưu dính trên đầu: danh sách dài cả trăm dòng, kéo xuống
+   cuối tìm nút rất lâu (yêu cầu 29/10).
+   .page-content có overflow-y:auto nên mọi position:sticky bên trong đều chết
+   — chỉ mở overflow đúng lúc đang ở bàn cắt, và giữ đầu trang chạy như cũ
+   để không phải đoán chiều cao của nó. */
+.page-content.cho-ban-cat {
+  overflow: visible;
+}
+.page-content.cho-ban-cat > .page-header {
+  position: static;
+}
+.ban-cat-luu {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--bg, #fff);
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+  box-shadow: 0 6px 10px -8px rgba(0, 0, 0, 0.35);
+}
 .ban-cat-total {
   display: flex;
   justify-content: space-between;
   font-size: 13.5px;
   font-weight: 800;
-  padding: 6px 4px 10px;
+  padding: 6px 4px 8px;
 }
 .ban-cat-total span:last-child {
   color: #ef6c00;
@@ -1585,6 +1612,60 @@ body {
   background: #1976d2;
   color: #fff;
   border-color: #1976d2;
+}
+
+/* Quét lại đơn thiếu (màn Đơn thiếu, chỉ chủ xưởng) */
+.quet-lai {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+.quet-lai-dong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.quet-lai-nhan {
+  width: 100%;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #757575;
+}
+.quet-lai-dong button {
+  flex: 1;
+}
+.quet-lai-dong button {
+  padding: 6px 10px;
+  border-radius: 20px;
+  background: #fff;
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #757575;
+}
+.quet-lai-dong button.on {
+  background: #1976d2;
+  color: #fff;
+  border-color: #1976d2;
+}
+.quet-lai-tin {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+/* Đã có hàng trong kho Pancake — lệnh may này có thể không cần nữa.
+   Chỉ là cờ báo cho chủ xưởng tự quyết, app không tự xoá lệnh may. */
+.chip-du {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-color: #a5d6a7;
+  font-weight: 800;
 }
 
 .bang-thieu {

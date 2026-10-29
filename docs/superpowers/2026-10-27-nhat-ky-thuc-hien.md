@@ -416,9 +416,47 @@ sản phẩm nên không ai để ý; sau khi đồng bộ 49 sản phẩm Xư�
 gọi nối đuôi nhau. Sửa: lấy hết `product_variants` trong một lượt rồi gom trong bộ nhớ.
 
 THEO YÊU CẦU CHỦ XƯỞNG (28/10):
+
 - App chủ xưởng có thêm kiểu xem Gộp theo mẫu mã (không có nút Báo xong — việc của thợ).
 - Bàn cắt cũng có hai kiểu xem; ở kiểu gộp thì chia ngược số vừa cắt về từng đơn,
   đơn trễ nhận trước (`chiaSoCat`).
 - Mở app LẦN NÀO CŨNG vào kiểu Gộp, không nhớ lựa chọn cũ nữa.
 - Đồng bộ toàn bộ 49 sản phẩm / 704 mẫu mã của Xưởng nhà làm vào app, kèm màu, size
   và ảnh riêng từng màu (`/api/cron/dong-bo-san-pham`, chạy trong lượt 2h sáng).
+
+## 29/10/2026 — đợt sửa thứ ba (theo lời chủ xưởng)
+
+- **Bàn cắt gõ thẳng số.** Chỉ có +/− thì một mẫu mấy trăm cái bấm cả buổi không
+  xong. Thêm ô số, vẫn giữ hai nút cho số nhỏ. Gõ quá số chưa cắt thì tự kẹp lại.
+- **Nút Lưu lên đầu.** Danh sách bàn cắt dài cả trăm dòng. `Ruling:` dải tổng +
+  nút Lưu dính trên đầu màn, KHÔNG phải nút nổi ở góc — chủ xưởng cần nhìn thấy
+  tổng số sắp ghi ngay cạnh nút.
+  Vướng: `.page-content` có `overflow-y: auto` nên mọi `position: sticky` bên
+  trong đều chết. Chỉ mở `overflow: visible` đúng lúc đang ở bàn cắt, và ghim đầu
+  trang về `static` để khỏi phải đoán chiều cao của nó.
+- **Chủ xưởng bấm xong hộ thợ.** Thợ không rành công nghệ. Thêm hàng nút
+  "✓ Xong hết / Một phần" trên thẻ đơn của admin, và bỏ rào `!isAdmin` ở thẻ gộp.
+  Đi chung đường với nút của thợ nên vẫn đẩy sang kho Pancake.
+- **Quét lại đơn thiếu N ngày.** Nút trên màn Đơn thiếu, chọn 1/3/7/30 ngày.
+  `Ruling:` đo 29/10 — tham số `updateStatus` của Pancake KHÔNG lọc theo ngày
+  (thêm vào vẫn trả đủ 65.950 đơn). Pancake trả đơn mới sửa trước, nên tự cắt
+  theo `updated_at` và dừng ngay khi qua mốc. Đo lại: 1 ngày = 36 đơn/1 trang/3
+  giây, 7 ngày = 149 đơn/3 trang/7 giây.
+- **Đồng bộ tồn kho hai chiều.** Chủ xưởng nhập hàng tay trên Pancake mà app
+  không hay biết, lệnh may vẫn nằm đó. Thêm `tonKho.ts`:
+  - webhook nhận cả gói Tồn kho / Sản phẩm / Gọi tự động (chủ xưởng bật thêm ba
+    loại này 29/10). Gói không phải đơn thì đánh dấu xử lý xong ngay, kẻo hàng
+    đợi đơn đầy "đơn rỗng", rồi đọc lại tồn của những mẫu mã có trong gói.
+  - `/api/cron/dong-bo-ton` chạy mỗi 5 phút cho mọi mẫu mã còn lệnh may chờ.
+  - sau mỗi lượt nhập kho thành công, đọc lại tồn ngay.
+  `Ruling:` KHÔNG tự xoá lệnh may khi kho đã có hàng — thợ có thể đã cắt, đã may
+  dở. Chỉ gắn `surplus_flag` và hiện chip "✅ KHO ĐÃ CÓ HÀNG" để chủ xưởng quyết.
+- **Đối chiếu đơn mỗi 5 phút** (trước là mỗi 24 giờ) để đơn lọt lưới webhook vẫn
+  hiện ra gần như tức thì.
+- **Mở app vào thẳng Đơn hàng** (trước là Sản phẩm), chế độ gộp theo mẫu mã.
+- **Soi lại vụ "nhập kho không thấy gì" trưa 29/10:** app CÓ đẩy sang. Đúng một
+  lượt bấm xong lúc 13:45 giờ VN → `production_logs` 1 dòng →
+  `pancake_stock_ins` 1 dòng status `ok` → Pancake **phiếu nhập 2294**, trạng
+  thái 1, ghi chú "Xưởng 81 tự nhập — lượt b_mvt6iova_1phsbal9". Cái thiếu là
+  đường ngược lại: tồn kho Pancake không chảy về app. Đã bịt bằng mục trên.
+

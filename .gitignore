@@ -10,3 +10,5 @@ Thumbs.db
 test-results/
 .vscode/
 .vercel
+.superpowers/
+tsconfig.tsbuildinfo
