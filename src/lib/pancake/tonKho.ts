@@ -19,8 +19,12 @@ import { tinhSoCanMay } from "./math.ts";
 
 /** Trần một lượt: một gói webhook không được kéo theo hàng trăm lượt gọi Pancake. */
 const TOI_DA_MAU_MA = 20;
-/** Lượt quét định kỳ đi được xa hơn: đo 29/10 là 0,68 giây một mẫu mã. */
-export const TOI_DA_QUET = 60;
+/**
+ * Lượt quét định kỳ đi được xa hơn, nhưng không được chạm trần 60 giây của hàm
+ * Vercel: đo 29/10 là 0,68 giây một mẫu mã, nên 30 mẫu ≈ 20 giây. Route xáo danh
+ * sách trước khi cắt nên mẫu mã nào cũng tới lượt sau vài lần chạy.
+ */
+export const TOI_DA_QUET = 30;
 
 /**
  * Gói này có phải một đơn hàng không?
