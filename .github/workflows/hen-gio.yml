@@ -67,11 +67,9 @@ jobs:
                 [ -z "$TRANG" ] && break
               done
               # Dua toan bo san pham cua Xuong nha lam vao app.
+              # Doi chieu don khong goi o day: luot */5 phut ben duoi da quet
+              # lien tuc ca ngay, goi them luc 2h sang chi ton bang thong.
               curl -sS -X POST "$APP_URL/api/cron/dong-bo-san-pham" \
-                -H "x-xuong81-secret: $CRON_SECRET"
-              echo ""
-              # Doi chieu don 24h qua: webhook khong phai duong duy nhat.
-              curl -sS -X POST "$APP_URL/api/cron/doi-chieu-don" \
                 -H "x-xuong81-secret: $CRON_SECRET" ;;
             keep-alive)
               curl -sS -X POST "$APP_URL/api/cron/keep-alive" \
