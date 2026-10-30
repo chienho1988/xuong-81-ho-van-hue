@@ -2,8 +2,11 @@
  * GET|POST /api/cron/keep-alive
  *
  * Supabase bản miễn phí cho dự án ngủ sau 7 ngày không có request nào. Route này
- * chạy một truy vấn nhẹ để giữ dự án thức (mục 7 của thiết kế). Có hai bộ hẹn giờ
- * độc lập gọi vào đây: GitHub Actions và Vercel Cron — cái này chết còn cái kia.
+ * chạy một truy vấn nhẹ để giữ dự án thức (mục 7 của thiết kế).
+ *
+ * 30/10: chỉ còn Vercel Cron gọi vào đây, mỗi ngày một lần. Lượt GitHub Actions
+ * trùng giờ đã bỏ — nó nằm cùng workflow với lượt chạy 5 phút một lần vốn đã gõ
+ * vào DB 288 lần mỗi ngày, nên không bao giờ là cái cứu được dự án khỏi ngủ.
  */
 import { supabaseServer } from "@/lib/supabaseServer";
 
@@ -18,15 +21,11 @@ async function chay(req: Request) {
     return Response.json({ ok: false, loi: "sai ma bi mat" }, { status: 401 });
   }
 
-  const { count, error } = await supabaseServer
-    .from("orders")
-    .select("id", { count: "exact", head: true });
+  // Chi can MOT dong de Supabase tinh la co request. Truoc day dem count exact
+  // nen moi lan goi la quet ca bang orders - ton bang thong khong vi ly do gi.
+  const { error } = await supabaseServer.from("orders").select("id").limit(1);
 
-  return Response.json({
-    ok: !error,
-    soDon: count ?? 0,
-    luc: new Date().toISOString(),
-  });
+  return Response.json({ ok: !error, luc: new Date().toISOString() });
 }
 
 export const GET = chay;

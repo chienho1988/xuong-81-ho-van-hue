@@ -140,17 +140,6 @@ export async function layTonKhoTuoi(
   return v.remain_quantity;
 }
 
-export async function layDonHang(
-  orderId: string,
-): Promise<DonPancakeDayDu | null> {
-  const json = await goi(
-    `/shops/${SHOP_ID}/orders/${encodeURIComponent(orderId)}`,
-  );
-  const d = json?.data ?? json;
-  if (!d?.id) return null;
-  return chuanHoaDon(d);
-}
-
 /** Đổi payload đơn thô của Pancake về đúng những trường app dùng. */
 export function chuanHoaDon(d: any): DonPancakeDayDu {
   return {

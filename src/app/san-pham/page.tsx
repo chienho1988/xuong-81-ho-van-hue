@@ -642,8 +642,7 @@ function ProductForm({
   );
 }
 
-type View =
-  "categories" | "products" | "product-detail" | "add-product" | "edit-product";
+type View = "categories" | "products" | "product-detail" | "edit-product";
 
 function DanhMucContent() {
   const { user, logout } = useAuth();
@@ -655,10 +654,6 @@ function DanhMucContent() {
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  // Shop có ~2.087 sản phẩm Pancake. Mặc định chỉ hiện danh sách chủ xưởng tự quản,
-  // không trộn lẫn (mục 8b của thiết kế).
-  const [nguon, setNguon] = useState<"cua-toi" | "pancake">("cua-toi");
-  const [showAddCat, setShowAddCat] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [searchQ, setSearchQ] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
@@ -688,10 +683,9 @@ function DanhMucContent() {
     router.push(`?${params.toString()}`);
   };
 
-  const hopNguon = (p: Product) =>
-    nguon === "pancake"
-      ? (p as any).source === "pancake"
-      : (p as any).source !== "pancake";
+  // Chủ xưởng chốt 30/10: màn này chỉ để xem hàng đồng bộ từ Pancake. Sản phẩm
+  // tự nhập tay thời app chưa nối Pancake không còn hiện ở đâu nữa.
+  const hopNguon = (p: Product) => (p as any).source === "pancake";
 
   const getProductsByCat = (catId: string) =>
     products.filter((p) => p.category_id === catId && p.active && hopNguon(p));
@@ -770,41 +764,6 @@ function DanhMucContent() {
     navigateTo("products", catId);
     setTimeout(() => setSavedMsg(""), 3000);
   };
-
-  if (view === "add-product" && selCat) {
-    return (
-      <div className="app-shell">
-        <div className="page-content">
-          <div
-            className="page-header"
-            style={{ display: "flex", alignItems: "center", gap: 12 }}
-          >
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => navigateTo("products", selCat.id)}
-              style={{ padding: 8, minHeight: 40 }}
-            >
-              ‹
-            </button>
-            <div>
-              <h1 style={{ fontSize: 18 }}>Thêm sản phẩm</h1>
-              <div className="subtitle">
-                {selCat.icon} {selCat.name}
-              </div>
-            </div>
-          </div>
-          <div style={{ padding: "12px" }}>
-            <ProductForm
-              catId={selCat.id}
-              onSave={handleSaveProduct}
-              onCancel={() => navigateTo("products", selCat.id)}
-            />
-          </div>
-        </div>
-        <BottomNav />
-      </div>
-    );
-  }
 
   if (view === "edit-product" && selProduct) {
     const cat = categories.find((c) => c.id === selProduct.category_id);
@@ -1113,15 +1072,6 @@ function DanhMucContent() {
                 <div className="subtitle">{allProds.length} sản phẩm</div>
               </div>
             </div>
-            {user?.role === "admin" && (
-              <button
-                className="btn btn-primary btn-sm"
-                id="btn-them-san-pham"
-                onClick={() => navigateTo("add-product", selCat.id)}
-              >
-                + Thêm SP
-              </button>
-            )}
           </div>
           <div style={{ padding: "0 12px 8px" }}>
             <div style={{ position: "relative" }}>
@@ -1181,18 +1131,8 @@ function DanhMucContent() {
           )}
           {allProds.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-icon">📦</div>Chưa có sản phẩm nào
-              {user?.role === "admin" && (
-                <div style={{ marginTop: 16 }}>
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => navigateTo("add-product", selCat.id)}
-                    id="btn-them-dau-tien"
-                  >
-                    + Thêm sản phẩm đầu tiên
-                  </button>
-                </div>
-              )}
+              <div className="empty-icon">📦</div>Danh mục này chưa có mẫu nào
+              của Xưởng nhà làm
             </div>
           ) : prods.length === 0 ? (
             <div className="empty-state">
@@ -1325,22 +1265,6 @@ function DanhMucContent() {
   return (
     <div className="app-shell">
       <div className="page-content scroll-top-padding">
-        <div className="loc-nhanh" style={{ marginBottom: 10 }}>
-          <button
-            className={nguon === "cua-toi" ? "on" : ""}
-            onClick={() => setNguon("cua-toi")}
-            id="btn-nguon-cua-toi"
-          >
-            Của tôi
-          </button>
-          <button
-            className={nguon === "pancake" ? "on" : ""}
-            onClick={() => setNguon("pancake")}
-            id="btn-nguon-pancake"
-          >
-            Từ Pancake
-          </button>
-        </div>
         <div
           className="page-header"
           style={{
@@ -1470,6 +1394,8 @@ function DanhMucContent() {
           <div className="cat-grid">
             {categories.map((cat) => {
               const count = getProductsByCat(cat.id).length;
+              // Danh mục rỗng là danh mục tay thời chưa nối Pancake.
+              if (!count) return null;
               return (
                 <button
                   key={cat.id}
@@ -1488,95 +1414,10 @@ function DanhMucContent() {
                 </button>
               );
             })}
-            {user?.role === "admin" && (
-              <button
-                className="cat-card"
-                id="btn-them-danh-muc"
-                style={{ borderColor: "var(--border)", borderStyle: "dashed" }}
-                onClick={() => setShowAddCat(true)}
-              >
-                <span style={{ fontSize: 28, color: "var(--text-secondary)" }}>
-                  +
-                </span>
-                <span
-                  style={{
-                    color: "var(--text-secondary)",
-                    fontSize: 14,
-                    fontWeight: 700,
-                  }}
-                >
-                  Thêm danh mục
-                </span>
-              </button>
-            )}
           </div>
         )}
       </div>
       <BottomNav />
-      {showAddCat && (
-        <div className="modal-overlay" onClick={() => setShowAddCat(false)}>
-          <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-title">Thêm danh mục mới</div>
-            <div className="form-group">
-              <label className="form-label">Tên danh mục</label>
-              <input
-                className="form-input"
-                placeholder="VD: Quần, Áo khoác..."
-                id="input-cat-name"
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Icon</label>
-              <div className="pill-row">
-                {["👔", "👗", "🧥", "👖", "👙", "🧣", "👒", "🎀", "🧤"].map(
-                  (ic) => (
-                    <button key={ic} className="pill" style={{ fontSize: 22 }}>
-                      {ic}
-                    </button>
-                  ),
-                )}
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Màu đại diện</label>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {[
-                  "#4A90D9",
-                  "#E91E8C",
-                  "#FF6B35",
-                  "#2E7D32",
-                  "#7B1FA2",
-                  "#795548",
-                  "#546E7A",
-                ].map((clr) => (
-                  <button
-                    key={clr}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: "50%",
-                      background: clr,
-                      border: "3px solid transparent",
-                      cursor: "pointer",
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="modal-actions">
-              <button
-                className="btn btn-outline"
-                onClick={() => setShowAddCat(false)}
-              >
-                Huỷ
-              </button>
-              <button className="btn btn-primary" id="btn-save-cat">
-                Lưu
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

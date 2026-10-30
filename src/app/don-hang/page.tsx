@@ -885,10 +885,13 @@ export default function DonHangPage() {
   };
 
   const loadOrders = async () => {
-    // Chỉ lấy đơn còn chờ may + đơn đã xong trong 30 ngày. Trước 30/10 chỗ này
+    // Chỉ lấy đơn còn chờ may + đơn đã xong trong 7 ngày. Trước 30/10 chỗ này
     // kéo về MỌI đơn từ ngày mở app, cứ 2 giây một lần — đó là thứ đã đốt hết
     // hạn mức băng thông của Supabase và làm app chết đứng sáng 30/10.
-    const moc = new Date(Date.now() - 30 * 86400000).toISOString();
+    //
+    // 7 ngày chứ không phải 30: danh sách "đã xong" ở đây chỉ để thợ soát lại
+    // việc vừa làm, còn tra cứu xa hơn thì đã có màn Lịch sử.
+    const moc = new Date(Date.now() - 7 * 86400000).toISOString();
     const { data, error } = await supabase
       .from("orders")
       .select("*")

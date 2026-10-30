@@ -62,9 +62,13 @@ export default function HomNayPage() {
   }, []);
 
   const load = useCallback(async () => {
+    // Màn này chỉ cần đơn còn chờ may + đơn xong TRONG HÔM NAY. Trước 30/10 chỗ
+    // này không lọc gì cả: mỗi lượt dò là tải về mọi đơn từ ngày mở app, mà đây
+    // lại là màn chủ xưởng mở suốt ngày. Lọc ngay trên máy chủ.
     const { data: ds, error: loiDon } = await supabase
       .from("orders")
-      .select("*");
+      .select("*")
+      .or(`status.eq.pending,completed_at.gte.${homNay}T00:00:00`);
 
     if (loiDon) {
       setMounted(true);
