@@ -449,8 +449,8 @@ THEO YÊU CẦU CHỦ XƯỞNG (28/10):
     đợi đơn đầy "đơn rỗng", rồi đọc lại tồn của những mẫu mã có trong gói.
   - `/api/cron/dong-bo-ton` chạy mỗi 5 phút cho mọi mẫu mã còn lệnh may chờ.
   - sau mỗi lượt nhập kho thành công, đọc lại tồn ngay.
-  `Ruling:` KHÔNG tự xoá lệnh may khi kho đã có hàng — thợ có thể đã cắt, đã may
-  dở. Chỉ gắn `surplus_flag` và hiện chip "✅ KHO ĐÃ CÓ HÀNG" để chủ xưởng quyết.
+    `Ruling:` KHÔNG tự xoá lệnh may khi kho đã có hàng — thợ có thể đã cắt, đã may
+    dở. Chỉ gắn `surplus_flag` và hiện chip "✅ KHO ĐÃ CÓ HÀNG" để chủ xưởng quyết.
 - **Đối chiếu đơn mỗi 5 phút** (trước là mỗi 24 giờ) để đơn lọt lưới webhook vẫn
   hiện ra gần như tức thì.
 - **Mở app vào thẳng Đơn hàng** (trước là Sản phẩm), chế độ gộp theo mẫu mã.
@@ -494,3 +494,72 @@ Ngày 28/10 đồng bộ thêm 49 sản phẩm / 704 mẫu mã nên mỗi vòng 
 **Chủ xưởng phải tự làm một việc:** vào Supabase → Settings → Billing, bỏ spend
 cap hoặc nâng gói thì dự án mới chạy lại. Code không gỡ được chỗ này.
 
+---
+
+## 30/10/2026 — chốt ở lại gói Free, cắt băng thông đợt hai, dọn phần thừa
+
+Đã vào trang Billing của tổ chức `xuong-81-ho-van-hue` đọc tận chữ:
+
+- Gói **Free**, spend cap **đang bật**, **không có thẻ** trong tài khoản.
+- Bốn hoá đơn gần nhất đều ngày mùng 5 → chu kỳ reset **5/11/2026**.
+- Supabase ghi rõ: nâng gói thì mở ngay, không thì chờ hết chu kỳ.
+
+`Ruling:` chủ xưởng chọn **ở lại Free**. Vậy thì không được coi đợt sửa sáng
+30/10 là xong việc: nhịp 60 giây vẫn thừa sức vượt 5 GB/tháng. Phải cắt tiếp
+cho bằng thông cả ngày xuống dưới hạn mức, không phải cắt cho đỡ.
+
+### Ba chỗ còn đốt băng thông mà đợt sáng không thấy
+
+1. `Ruling:` **realtime bắn một sự kiện cho MỖI dòng đổi, không phải mỗi lượt
+   ghi.** Lượt `dong-bo-ton` 5 phút một lần có thể gắn cờ `surplus_flag` cho
+   hơn chục đơn cùng lúc → hơn chục sự kiện → trước đây là hơn chục lượt tải
+   NGUYÊN bảng trên MỖI máy đang mở app. Đây là chỗ nặng nhất còn lại, và nó
+   không liên quan gì tới nhịp dò. Đã gom mọi tín hiệu qua một cửa, chờ 1,5
+   giây rồi tải một lần.
+2. `Ruling:` **app chạy nền vẫn dò.** Điện thoại thợ để trong túi cả ngày vẫn
+   kéo bảng mỗi phút. Đã chặn theo `visibilityState`, mở lại thì tải ngay.
+3. Màn **Hôm nay** truy vấn `orders.select("*")` **không có điều kiện nào** —
+   mỗi lượt kéo về mọi đơn từ ngày mở app, mà đây đúng là màn chủ xưởng mở suốt
+   ngày. Đợt sáng chỉ sửa phần danh mục + sản phẩm của màn này nên bỏ sót. Đã
+   lọc trên máy chủ: đơn chờ may + đơn xong trong hôm nay.
+
+Thêm: `don-hang` thu cửa sổ đơn đã xong 30 → 7 ngày; `keep-alive` bỏ
+`count: "exact"` (quét cả bảng) đổi thành `select id limit 1`.
+
+### keep-alive: gọi lắm mà vô ích
+
+Supabase Free cho dự án ngủ sau **7 ngày** không có request. Mà lượt `*/5` phút
+đã gõ vào DB 288 lần mỗi ngày → dự án không bao giờ ngủ được.
+
+`Ruling:` bỏ nhánh keep-alive của GitHub Actions. Nó nằm **cùng workflow** với
+lượt `*/5`, nên cái chết là chết cả hai — nó chưa bao giờ là lưới đỡ thật. Giữ
+lại Vercel Cron mỗi ngày một lần làm lưới đỡ độc lập thật sự. (Lưu ý cho sau:
+GitHub tự tắt workflow hẹn giờ nếu repo 60 ngày không có hoạt động.)
+
+Cũng bỏ lượt `doi-chieu-don` lúc 2h sáng: lượt `*/5` đã quét liên tục cả ngày.
+
+### Màn Sản phẩm chỉ còn hàng Pancake
+
+`Ruling:` chủ xưởng yêu cầu 30/10 — màn này chỉ để xem hàng đồng bộ từ Pancake.
+Bỏ thanh chuyển "Của tôi / Từ Pancake", lọc cứng `source = pancake`. Bỏ luôn cả
+đường Thêm sản phẩm và Thêm danh mục: sản phẩm tạo tay sẽ không hiện ở đâu nữa
+nên để lại là bẫy. Ẩn danh mục 0 sản phẩm. Giữ nguyên đường Sửa / Xoá.
+
+(Modal "Thêm danh mục mới" vốn là UI rỗng từ đầu — nút Lưu không có `onClick`,
+các ô input không nối state.)
+
+### Dọn code chết
+
+Đã đối chiếu TỪNG hàm trước khi xoá, vì phép quét "export không ai gọi" cho kết
+quả sai lệch: `layTraCuu`, `baoDamSanPham`, `dangTapDuot`, `xepThuTuNhan`,
+`isPushSupported` đều được gọi **trong chính file của chúng** — xoá là vỡ app.
+
+Xoá thật: `mockData.ts` 578 → 96 dòng (5 mảng `MOCK_*` + 11 hàm localStorage
+thời chưa có database; 15 chỗ trong app chỉ import KIỂU từ đây), 9 hàm trong
+`supabaseService.ts`, `layDonHang` trong `pancake/api.ts`, ba bản script E2E
+trùng nhau ở gốc repo (bản `test-sync-full.cjs` còn cắm cứng URL + anon key),
+và `playwright` chuyển từ `dependencies` sang `devDependencies` (18 MB đang
+được cài vào bản chạy thật trên Vercel).
+
+Giữ `huyPhieuNhapKho` và `danhDauTuNhapTay` dù chưa ai gọi: đó là cửa thoát khi
+cần sửa phiếu nhập kho sai.
