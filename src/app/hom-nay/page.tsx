@@ -41,29 +41,36 @@ export default function HomNayPage() {
 
   const homNay = new Date().toISOString().split("T")[0];
 
+  // Danh mục và tên sản phẩm gần như không đổi trong ngày — tải một lần. Trước
+  // 30/10 hai bảng này bị kéo lại mỗi vòng dò (2 giây một lần).
+  useEffect(() => {
+    Promise.all([
+      supabase.from("categories").select("id,icon,color"),
+      supabase.from("products").select("id,name,category_id"),
+    ]).then(([{ data: cats }, { data: prods }]) => {
+      const map: ProductMap = {};
+      for (const p of prods || []) {
+        const cat = cats?.find((c) => c.id === p.category_id);
+        map[p.id] = {
+          name: p.name,
+          icon: cat?.icon || "👔",
+          color: cat?.color || "#4A90D9",
+        };
+      }
+      setProducts(map);
+    });
+  }, []);
+
   const load = useCallback(async () => {
-    const [{ data: ds, error: loiDon }, { data: cats }, { data: prods }] =
-      await Promise.all([
-        supabase.from("orders").select("*"),
-        supabase.from("categories").select("*"),
-        supabase.from("products").select("*"),
-      ]);
+    const { data: ds, error: loiDon } = await supabase
+      .from("orders")
+      .select("*");
 
     if (loiDon) {
       setMounted(true);
       return;
     }
 
-    const map: ProductMap = {};
-    for (const p of prods || []) {
-      const cat = cats?.find((c) => c.id === p.category_id);
-      map[p.id] = {
-        name: p.name,
-        icon: cat?.icon || "👔",
-        color: cat?.color || "#4A90D9",
-      };
-    }
-    setProducts(map);
     setOrders(ds || []);
     setCoCotMoi((ds || []).some((o: any) => o.cut_quantity !== undefined));
 

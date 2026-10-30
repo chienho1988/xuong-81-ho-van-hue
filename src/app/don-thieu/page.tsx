@@ -29,16 +29,30 @@ export default function DonThieuPage() {
   const [dangQuet, setDangQuet] = useState(false);
   const [tinQuet, setTinQuet] = useState("");
 
+  // Chỉ đơn của đúng ngày đang xem, lọc ngay trên máy chủ. Trước 30/10 màn này
+  // kéo về mọi đơn rồi mới lọc trong trình duyệt, cứ 2 giây một lần.
   const load = useCallback(async () => {
-    const [{ data: ds }, { data: ps }] = await Promise.all([
-      supabase.from("orders").select("*"),
-      supabase.from("products").select("id,name"),
-    ]);
-    const map: SanPham = {};
-    for (const p of ps || []) map[p.id] = { name: p.name };
-    setProducts(map);
+    const hom = new Date(`${ngay}T12:00:00`);
+    const mai = new Date(hom.getTime() + 86400000).toISOString().split("T")[0];
+    const { data: ds } = await supabase
+      .from("orders")
+      .select("*")
+      .gte("created_at", `${ngay}T00:00:00`)
+      .lt("created_at", `${mai}T00:00:00`);
     setOrders(ds || []);
     setMounted(true);
+  }, [ngay]);
+
+  // Tên sản phẩm đổi rất hiếm — tải một lần, đừng kéo lại mỗi vòng dò.
+  useEffect(() => {
+    supabase
+      .from("products")
+      .select("id,name")
+      .then(({ data }) => {
+        const map: SanPham = {};
+        for (const p of data || []) map[p.id] = { name: p.name };
+        setProducts(map);
+      });
   }, []);
 
   useEffect(() => {
@@ -82,7 +96,7 @@ export default function DonThieuPage() {
     );
   }
 
-  const cuaNgay = orders.filter((o) => (o.created_at || "").startsWith(ngay));
+  const cuaNgay = orders;
   const hienThi = cuaNgay.filter((o) => {
     if (loc === "cho-may") return o.status === "pending";
     if (loc === "da-xong") return o.status === "done";

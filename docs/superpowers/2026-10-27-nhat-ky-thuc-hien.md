@@ -460,3 +460,37 @@ THEO YÊU CẦU CHỦ XƯỞNG (28/10):
   thái 1, ghi chú "Xưởng 81 tự nhập — lượt b_mvt6iova_1phsbal9". Cái thiếu là
   đường ngược lại: tồn kho Pancake không chảy về app. Đã bịt bằng mục trên.
 
+## 30/10/2026 — Supabase khoá dự án vì vượt băng thông
+
+Sáng 30/10 chủ xưởng lên đơn trên Pancake mà app im lặng. Soi ra:
+
+    HTTP 402 — "Service for this project is restricted due to the following
+    violations: exceed_egress_quota"
+
+Toàn bộ cơ sở dữ liệu bị khoá, không đọc không ghi được gì: không đăng nhập
+được, không tạo được lệnh may, không có thông báo.
+
+**Nguyên nhân:** `useAutoRefresh` để nhịp dò lại **2 GIÂY**, và mỗi vòng dò là
+tải về NGUYÊN bảng:
+
+- Đơn hàng: `select("*")` mọi đơn từ ngày mở app
+- Hôm nay: mọi đơn + mọi danh mục + mọi sản phẩm
+- Lịch sử: toàn bộ sổ may + sổ cắt + sản phẩm + danh mục
+- Đơn thiếu: mọi đơn rồi mới lọc theo ngày trong trình duyệt
+
+Một máy mở app cả ngày kéo khoảng 3 GB. Hạn mức gói miễn phí là 5 GB/tháng.
+Ngày 28/10 đồng bộ thêm 49 sản phẩm / 704 mẫu mã nên mỗi vòng dò nặng hẳn lên —
+đó là lý do nổ đúng lúc này.
+
+**Đã sửa:**
+
+- `Ruling:` realtime mới là đường cập nhật chính và nó tức thì; vòng dò chỉ là
+  lưới đỡ khi realtime rớt. Nhịp mặc định 2 giây → **60 giây**.
+- Đơn hàng: chỉ lấy đơn còn chờ + đơn đã xong trong 30 ngày.
+- Đơn thiếu: lọc ngày ngay trên máy chủ, không kéo cả bảng về lọc.
+- Hôm nay: danh mục + sản phẩm tải một lần, không nằm trong vòng dò.
+- Lịch sử: sổ sách 90 ngày gần nhất, và chỉ lấy cột cần dùng.
+
+**Chủ xưởng phải tự làm một việc:** vào Supabase → Settings → Billing, bỏ spend
+cap hoặc nâng gói thì dự án mới chạy lại. Code không gỡ được chỗ này.
+

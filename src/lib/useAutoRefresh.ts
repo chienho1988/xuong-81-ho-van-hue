@@ -1,8 +1,8 @@
 /**
  * Hook auto-refresh dùng chung cho tất cả page
  * Gồm:
- * - Realtime subscription theo table
- * - Poll mỗi 2s (fallback)
+ * - Realtime subscription theo table (đường chính, cập nhật tức thì)
+ * - Poll định kỳ (chỉ là lưới đỡ khi realtime rớt)
  * - visibilitychange (quay lại tab)
  * - window focus
  * - Debug logging
@@ -18,11 +18,23 @@ type UseAutoRefreshOptions = {
   enabled?: boolean;
 };
 
+/**
+ * Nhịp dò lại mặc định.
+ *
+ * Trước 30/10 chỗ này để 2 GIÂY. Mỗi màn dò lại là tải về NGUYÊN bảng, nên một
+ * máy mở app cả ngày kéo khoảng 3 GB — ngày 30/10 Supabase khoá cả dự án vì vượt
+ * hạn mức băng thông 5 GB/tháng, app chết đứng, không ai đăng nhập được.
+ *
+ * Realtime mới là đường cập nhật chính và nó tức thì; vòng dò này chỉ để đỡ khi
+ * realtime rớt, nên một phút một lần là đủ.
+ */
+const NHIP_DO_MAC_DINH = 60_000;
+
 export function useAutoRefresh({
   callback,
   table,
   event = "*",
-  intervalMs = 2000,
+  intervalMs = NHIP_DO_MAC_DINH,
   enabled = true,
 }: UseAutoRefreshOptions) {
   useEffect(() => {

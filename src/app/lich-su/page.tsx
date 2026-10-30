@@ -25,9 +25,13 @@ export default function LichSuPage() {
   >({});
 
   const loadLogs = useCallback(async () => {
+    // 90 ngày gần nhất là đủ cho màn lịch sử. Trước 30/10 chỗ này kéo về toàn bộ
+    // sổ sách từ ngày mở app, cứ 2 giây một lần.
+    const moc = new Date(Date.now() - 90 * 86400000).toISOString();
     const { data: logsData } = await supabase
       .from("production_logs")
       .select("*")
+      .gte("created_at", moc)
       .order("created_at", { ascending: false });
 
     // Sổ cắt nằm ở bảng riêng (mục 9c) — trộn vào cùng dòng thời gian, phân biệt
@@ -35,10 +39,16 @@ export default function LichSuPage() {
     const { data: catData } = await supabase
       .from("cutting_logs")
       .select("*")
+      .gte("created_at", moc)
       .order("created_at", { ascending: false });
 
-    const { data: productsData } = await supabase.from("products").select("*");
-    const { data: categories } = await supabase.from("categories").select("*");
+    // Tên sản phẩm và danh mục: chỉ lấy cột cần dùng, không kéo cả ảnh từng màu.
+    const { data: productsData } = await supabase
+      .from("products")
+      .select("id,name,category_id");
+    const { data: categories } = await supabase
+      .from("categories")
+      .select("id,name,icon");
 
     const tron = [
       ...(logsData || []).map((l: any) => ({ ...l, loai: "may" })),
