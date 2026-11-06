@@ -20,7 +20,7 @@ import {
   chiaSoCat,
 } from "@/lib/cat";
 import { gomTheoMauMa, chiaNguocSoLuong, type NhomMauMa } from "@/lib/gopMauMa";
-import { xepNhomHan, type NhomHan } from "@/lib/nhacNho";
+import { xepNhomHan, soNgayTre, type NhomHan } from "@/lib/nhacNho";
 import { ghiSoCat } from "@/lib/supabaseService";
 
 type ProductMap = Record<
@@ -601,6 +601,7 @@ function OrderCard({
   const isUrgent = order.priority === "urgent";
   const today = new Date().toISOString().split("T")[0];
   const dueToday = order.due_date === today;
+  const ngayTre = soNgayTre(order.due_date, today);
 
   return (
     <div className={`order-card ${isUrgent ? "urgent" : ""}`}>
@@ -620,6 +621,14 @@ function OrderCard({
             <span className="chip">Size {order.size}</span>
             <span className="chip">{order.color}</span>
             {dueToday && <span className="chip chip-due">⏰ Hạn hôm nay</span>}
+            {ngayTre > 0 && (
+              <span
+                className="chip"
+                style={{ color: "#dc2626", fontWeight: 700, borderColor: "#dc2626" }}
+              >
+                🔴 Trễ {ngayTre} ngày
+              </span>
+            )}
             {isAdmin && order.source === "pancake" && (
               <span className="chip chip-pancake">TỪ PANCAKE</span>
             )}
@@ -1051,6 +1060,10 @@ export default function DonHangPage() {
   const pending = orders
     .filter((o) => o.status === "pending")
     .sort((a, b) => {
+      // Hạn cũ nhất (trễ nhất) lên đầu, đơn không có hạn xuống cuối.
+      const ha = a.due_date || "9999-12-31";
+      const hb = b.due_date || "9999-12-31";
+      if (ha !== hb) return ha.localeCompare(hb);
       if ((a.priority === "urgent") !== (b.priority === "urgent"))
         return a.priority === "urgent" ? -1 : 1;
       return (b.created_at || "").localeCompare(a.created_at || "");

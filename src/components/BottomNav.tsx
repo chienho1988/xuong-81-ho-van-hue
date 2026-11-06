@@ -17,6 +17,8 @@ export default function BottomNav() {
   const tabs = [
     { path: "/don-hang", icon: "📋", label: "Đơn hàng", cho: "ca-hai" },
     { path: "/don-thieu", icon: "✂️", label: "Sản phẩm cần may", cho: "admin" },
+    { path: "/san-pham", icon: "🗂️", label: "Sản phẩm", cho: "admin" },
+    { path: "/bao-cao", icon: "📊", label: "Báo cáo", cho: "admin" },
     { path: "/lich-su", icon: "🕐", label: "Lịch sử", cho: "tho" },
   ];
 

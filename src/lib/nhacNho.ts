@@ -13,6 +13,15 @@ export function xepNhomHan(don: Order, homNay: string): NhomHan {
   return "con-thoi-gian";
 }
 
+/** Số ngày đã trễ hạn (0 nếu chưa trễ hoặc không có hạn). */
+export function soNgayTre(dueDate: string | null | undefined, homNay: string) {
+  if (!dueDate || dueDate >= homNay) return 0;
+  const ms =
+    new Date(`${homNay}T12:00:00Z`).getTime() -
+    new Date(`${dueDate.slice(0, 10)}T12:00:00Z`).getTime();
+  return Math.round(ms / 86400000);
+}
+
 export interface LoiNhac {
   tieuDe: string;
   noiDung: string;

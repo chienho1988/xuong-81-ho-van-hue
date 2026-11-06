@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { xepNhomHan, dungLoiNhac } from "../../src/lib/nhacNho.ts";
+import { xepNhomHan, dungLoiNhac, soNgayTre } from "../../src/lib/nhacNho.ts";
 import { donMau } from "./_donMau.ts";
 
 test("xếp nhóm theo hạn", () => {
@@ -50,4 +50,11 @@ test("lời nhắc đếm số cái, không đếm số đơn", () => {
 
 test("không có đơn nào thì buổi sáng cũng im lặng", () => {
   assert.equal(dungLoiNhac([], "2026-10-27", "sang"), null);
+});
+
+test("đếm số ngày trễ", () => {
+  assert.equal(soNgayTre("2026-10-24", "2026-10-27"), 3);
+  assert.equal(soNgayTre("2026-10-27", "2026-10-27"), 0);
+  assert.equal(soNgayTre("2026-11-01", "2026-10-27"), 0);
+  assert.equal(soNgayTre(null, "2026-10-27"), 0);
 });
