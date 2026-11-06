@@ -22,6 +22,8 @@ export default function DonThieuPage() {
     () => new Date().toISOString().split("T")[0],
   );
   const [loc, setLoc] = useState<Loc>("tat-ca");
+  // Lẻ: mỗi đơn một dòng. Gộp: cộng số lượng theo từng sản phẩm để biết tổng cần may.
+  const [cheDo, setCheDo] = useState<"le" | "gop">("le");
 
   // Quét lại đơn thiếu: webhook chỉ bắn khi đơn thay đổi, nên đơn cũ hoặc đơn
   // lọt lưới lúc webhook hỏng phải có đường kéo về tay.
@@ -104,6 +106,23 @@ export default function DonThieuPage() {
   });
 
   const dong = dungDongDonThieu(hienThi, products);
+
+  // Gộp theo tên sản phẩm; không dùng Map để giữ đúng target es5.
+  const gop: { mauMa: string; image?: string | null; soLuong: number; soDon: number }[] =
+    [];
+  const viTri: Record<string, number> = {};
+  hienThi.forEach((o, i) => {
+    const d = dong[i];
+    if (d.trangThai === "Xong") return;
+    if (viTri[d.mauMa] === undefined) {
+      viTri[d.mauMa] = gop.length;
+      gop.push({ mauMa: d.mauMa, image: o.image_url, soLuong: 0, soDon: 0 });
+    }
+    const g = gop[viTri[d.mauMa]];
+    g.soLuong += d.soLuong;
+    g.soDon += 1;
+  });
+  gop.sort((a, b) => b.soLuong - a.soLuong);
   const tongCan = cuaNgay.reduce((t, o) => t + o.quantity, 0);
   const tongXong = cuaNgay
     .filter((o) => o.status === "done")
@@ -148,7 +167,7 @@ export default function DonThieuPage() {
     <div className="app-shell">
       <div className="page-header">
         <div>
-          <b style={{ fontSize: 20 }}>Đơn thiếu</b>
+          <b style={{ fontSize: 20 }}>Sản phẩm cần may</b>
           <div style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
             {hienThi.length} dòng · {tongCan} cái · đã xong {tongXong}
           </div>
@@ -199,6 +218,23 @@ export default function DonThieuPage() {
         </div>
 
         <div className="loc-nhanh">
+          <button
+            className={cheDo === "le" ? "on" : ""}
+            onClick={() => setCheDo("le")}
+            id="che-do-le"
+          >
+            Lẻ
+          </button>
+          <button
+            className={cheDo === "gop" ? "on" : ""}
+            onClick={() => setCheDo("gop")}
+            id="che-do-gop"
+          >
+            Gộp
+          </button>
+        </div>
+
+        <div className="loc-nhanh">
           {(
             [
               ["tat-ca", "Tất cả"],
@@ -220,6 +256,47 @@ export default function DonThieuPage() {
           <div className="empty-state">
             <div className="empty-icon">📑</div>
             Ngày này không có đơn nào
+          </div>
+        ) : cheDo === "gop" ? (
+          <div className="bang-thieu">
+            <table>
+              <thead>
+                <tr>
+                  <th>Sản phẩm</th>
+                  <th>Cần may</th>
+                  <th>Số đơn</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gop.length === 0 ? (
+                  <tr>
+                    <td colSpan={3}>Không còn gì cần may</td>
+                  </tr>
+                ) : (
+                  gop.map((g) => (
+                    <tr key={g.mauMa}>
+                      <td>
+                        <div className="o-mau-ma">
+                          {g.image && (
+                            <Image
+                              src={g.image}
+                              alt=""
+                              width={28}
+                              height={28}
+                            />
+                          )}
+                          <span>{g.mauMa}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <b>{g.soLuong}</b>
+                      </td>
+                      <td>{g.soDon}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         ) : (
           <>

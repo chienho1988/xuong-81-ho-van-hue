@@ -15,11 +15,8 @@ export default function BottomNav() {
   // Của thợ: Đơn hàng · Lịch sử. Nhập SL và Lịch sử của chủ xưởng nằm trong tab con
   // của Báo cáo (mục 11 của thiết kế) — không tab nào bị mất, chỉ đổi chỗ.
   const tabs = [
-    { path: "/hom-nay", icon: "🏠", label: "Hôm nay", cho: "admin" },
     { path: "/don-hang", icon: "📋", label: "Đơn hàng", cho: "ca-hai" },
-    { path: "/don-thieu", icon: "📑", label: "Đơn thiếu", cho: "admin" },
-    { path: "/san-pham", icon: "🗂️", label: "Sản phẩm", cho: "admin" },
-    { path: "/bao-cao", icon: "📊", label: "Báo cáo", cho: "admin" },
+    { path: "/don-thieu", icon: "✂️", label: "Sản phẩm cần may", cho: "admin" },
     { path: "/lich-su", icon: "🕐", label: "Lịch sử", cho: "tho" },
   ];
 
