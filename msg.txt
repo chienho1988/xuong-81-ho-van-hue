@@ -1,7 +1,0 @@
-Simplify admin nav, add merged view for sewing list, shrink images
-
-- Admin bottom nav: Orders + "San pham can may" only; remove Hom nay page
-- don-thieu page: rename, add Le/Gop (merged by product) toggle
-- compressImage: 480px / JPEG 0.6 for new uploads
-
-Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
