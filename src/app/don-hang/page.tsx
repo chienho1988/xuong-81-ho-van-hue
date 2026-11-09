@@ -836,6 +836,7 @@ export default function DonHangPage() {
     tiepTuc: () => void;
   } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Order | null>(null);
+  const [huyHangLoat, setHuyHangLoat] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState("");
@@ -1336,6 +1337,31 @@ export default function DonHangPage() {
     setDeleteConfirm(null);
   };
 
+  // Đơn kho đã đủ hàng (cờ surplus_flag) và CHƯA cắt cái nào → an toàn để xoá.
+  // Đơn đã cắt dở giữ lại, chủ xưởng tự quyết từng đơn.
+  const donDuHang = pending.filter((o) => o.surplus_flag);
+  const donXoaDuoc = donDuHang.filter((o) => !((o.cut_quantity ?? 0) > 0));
+  const donGiuLai = donDuHang.length - donXoaDuoc.length;
+
+  const confirmHuyHangLoat = async () => {
+    const ids = donXoaDuoc.map((o) => o.id);
+    if (!ids.length) {
+      setHuyHangLoat(false);
+      return;
+    }
+    const { error } = await supabase
+      .from("orders")
+      .delete()
+      .in("id", ids)
+      .eq("status", "pending");
+    if (error) showToast("❌ Lỗi kết nối, thử lại");
+    else {
+      showToast(`🗑 Đã huỷ ${ids.length} đơn đã đủ hàng`);
+      await loadOrders();
+    }
+    setHuyHangLoat(false);
+  };
+
   const readAllNotifs = async () => {
     await supabase
       .from("orders")
@@ -1590,6 +1616,25 @@ export default function DonHangPage() {
                     <span>đơn chờ may</span>
                   </div>
                 </div>
+              </div>
+            )}
+            {isAdmin && donDuHang.length > 0 && (
+              <div className="order-card" style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 15, lineHeight: 1.5, marginBottom: 8 }}>
+                  ✅ Kho đã đủ hàng cho <b>{donDuHang.length}</b> đơn
+                  {donGiuLai > 0
+                    ? ` (${donGiuLai} đơn đã cắt dở sẽ được giữ lại)`
+                    : ""}
+                  .
+                </div>
+                <button
+                  className="btn btn-danger"
+                  id="btn-huy-hang-loat"
+                  disabled={donXoaDuoc.length === 0}
+                  onClick={() => setHuyHangLoat(true)}
+                >
+                  🗑 Huỷ hàng loạt {donXoaDuoc.length} đơn đã đủ hàng
+                </button>
               </div>
             )}
             <div className="kieu-xem">
@@ -2039,6 +2084,36 @@ export default function DonHangPage() {
                 onClick={confirmDelete}
               >
                 🗑 Xoá
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {huyHangLoat && (
+        <div className="modal-overlay" onClick={() => setHuyHangLoat(false)}>
+          <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-title">Huỷ hàng loạt</div>
+            <p style={{ fontSize: 16, lineHeight: 1.6 }}>
+              Xoá <b>{donXoaDuoc.length} đơn</b> (
+              {donXoaDuoc.reduce((t, o) => t + o.remaining_quantity, 0)} cái)
+              mà kho Pancake đã đủ hàng?
+              {donGiuLai > 0 && ` Giữ lại ${donGiuLai} đơn đã cắt dở.`} Không
+              hoàn tác được.
+            </p>
+            <div className="modal-actions">
+              <button
+                className="btn btn-outline"
+                onClick={() => setHuyHangLoat(false)}
+              >
+                Không
+              </button>
+              <button
+                className="btn btn-danger"
+                id="btn-confirm-huy-hang-loat"
+                onClick={confirmHuyHangLoat}
+              >
+                🗑 Xoá {donXoaDuoc.length} đơn
               </button>
             </div>
           </div>
